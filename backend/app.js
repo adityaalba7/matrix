@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes.js';
+import financeRoutes from './routes/finance.routes.js';
 import errorHandler from './middleware/error.js';
 
 dotenv.config();
@@ -27,6 +28,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/finance', financeRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({
