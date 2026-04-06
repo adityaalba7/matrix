@@ -15,7 +15,7 @@ const tabs = [
   { name: "Share", path: "/share", icon: Share, accent: "border-saffron text-saffron", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
 ];
 
-export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean, setMobileOpen: (v: boolean) => void }) {
+export function Sidebar({ mobileOpen, setMobileOpen, userName }: { mobileOpen: boolean, setMobileOpen: (v: boolean) => void, userName?: string }) {
   const location = useLocation();
   const path = location.pathname;
 
@@ -54,11 +54,11 @@ export function Sidebar({ mobileOpen, setMobileOpen }: { mobileOpen: boolean, se
       
       <div className="p-4 border-t border-white/10">
         <div className="flex items-center px-2 lg:justify-start md:justify-center justify-start">
-          <div className="w-9 h-9 rounded-full bg-surface flex items-center justify-center overflow-hidden shrink-0">
-             <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=100&auto=format&fit=crop" alt="Avatar" className="w-full h-full object-cover" />
+          <div className="w-9 h-9 rounded-full bg-emerald/20 flex items-center justify-center overflow-hidden shrink-0">
+             <span className="text-emerald font-bold text-sm">{(userName || 'U')[0].toUpperCase()}</span>
           </div>
           <div className="ml-3 lg:block md:hidden block">
-            <div className="text-sm font-medium text-[#E8E6DF]">Aditya</div>
+            <div className="text-sm font-medium text-[#E8E6DF]">{userName || 'User'}</div>
             <div className="text-[11px] text-emerald font-semibold uppercase tracking-wider">Pro Plan</div>
           </div>
         </div>

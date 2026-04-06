@@ -4,6 +4,7 @@ import redisClient from '../db/redis.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
 const QUIZ_TTL = 2 * 60 * 60;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 const checkValidation = (req, res) => {
   const errors = validationResult(req);
@@ -15,16 +16,63 @@ const checkValidation = (req, res) => {
   return true;
 };
 
-const generateStubQuestions = (subject, total, difficulty) => {
-  return Array.from({ length: total || 5 }, (_, i) => ({
-    index: i + 1,
-    question_text: `Stub question ${i + 1} on ${subject || 'General'} (${difficulty})`,
-    options: ['Option A', 'Option B', 'Option C', 'Option D'],
-    correct_answer: 'Option A',
-    concept_tag: subject || 'general',
-    explanation: 'This is a stub explanation. AI will fill this.',
-  }));
+const generateQuestions = async (subject, total, difficulty) => {
+  try {
+    const prompt = `Generate ${total} multiple-choice quiz questions about "${subject || 'General Computer Science'}" at ${difficulty} difficulty level.
+
+Return ONLY a valid JSON array, no markdown, no explanation. Format:
+[
+  {
+    "index": 1,
+    "question_text": "Question here?",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_answer": "Option A",
+    "concept_tag": "short topic name",
+    "explanation": "Brief explanation why correct answer is right."
+  }
+]`;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: 'You are an expert quiz generator. Always respond with ONLY valid JSON — no markdown, no explanation outside the JSON.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Groq API ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content?.trim() || '';
+    if (!text) throw new Error('Groq returned empty content');
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const questions = JSON.parse(cleaned);
+
+    return questions.map((q, i) => ({ ...q, index: i + 1 }));
+  } catch (err) {
+    console.error('[Groq] Question generation failed, using fallback:', err.message);
+    return Array.from({ length: total || 5 }, (_, i) => ({
+      index: i + 1,
+      question_text: `Question ${i + 1} on ${subject || 'General'} (${difficulty})`,
+      options: ['Option A', 'Option B', 'Option C', 'Option D'],
+      correct_answer: 'Option A',
+      concept_tag: subject || 'general',
+      explanation: 'Fallback question — AI API unavailable.',
+    }));
+  }
 };
+
 
 export const startQuiz = async (req, res) => {
   if (!checkValidation(req, res)) return;
@@ -39,7 +87,7 @@ export const startQuiz = async (req, res) => {
   );
 
   const session = rows[0];
-  const questions = generateStubQuestions(subject, total_questions, difficulty);
+  const questions = await generateQuestions(subject, total_questions, difficulty);
 
   await redisClient.setEx(
     `session:${session.id}:questions`,
@@ -130,23 +178,34 @@ export const endQuiz = async (req, res) => {
 };
 
 export const getPerformance = async (req, res) => {
-  const { rows } = await query(
-    `SELECT
-       qa.concept_tag,
-       COUNT(*)::INTEGER AS total_answered,
-       COUNT(*) FILTER (WHERE qa.is_correct = TRUE)::INTEGER AS correct_count,
-       ROUND(
-         COUNT(*) FILTER (WHERE qa.is_correct = TRUE)::NUMERIC / NULLIF(COUNT(*), 0) * 100
-       )::INTEGER AS accuracy_pct
-     FROM quiz_answers qa
-     JOIN quiz_sessions qs ON qs.id = qa.session_id
-     WHERE qs.user_id = $1 AND qa.concept_tag IS NOT NULL
-     GROUP BY qa.concept_tag
-     ORDER BY accuracy_pct DESC`,
-    [req.user.id]
-  );
+  const [perfResult, timeResult] = await Promise.all([
+    query(
+      `SELECT
+         qa.concept_tag,
+         COUNT(*)::INTEGER AS total_answered,
+         COUNT(*) FILTER (WHERE qa.is_correct = TRUE)::INTEGER AS correct_count,
+         ROUND(
+           COUNT(*) FILTER (WHERE qa.is_correct = TRUE)::NUMERIC / NULLIF(COUNT(*), 0) * 100
+         )::INTEGER AS accuracy_pct
+       FROM quiz_answers qa
+       JOIN quiz_sessions qs ON qs.id = qa.session_id
+       WHERE qs.user_id = $1 AND qa.concept_tag IS NOT NULL
+       GROUP BY qa.concept_tag
+       ORDER BY accuracy_pct DESC`,
+      [req.user.id]
+    ),
+    query(
+      `SELECT SUM(time_taken_seconds)::INTEGER AS total_seconds
+       FROM quiz_sessions
+       WHERE user_id = $1 AND completed_at IS NOT NULL`,
+      [req.user.id]
+    )
+  ]);
 
-  return sendSuccess(res, { performance: rows });
+  return sendSuccess(res, { 
+    performance: perfResult.rows,
+    time_logged_seconds: timeResult.rows[0]?.total_seconds || 0
+  });
 };
 
 export const getWeakTopics = async (req, res) => {

@@ -1,0 +1,43 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.2, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\Lenovo
+configfile: pyproject.toml
+plugins: anyio-4.12.1, langsmith-0.7.7, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 19 items
+
+test_night_owl.py .F..                                                   [ 21%]
+test_panic_mode.py ..                                                    [ 31%]
+test_predict_score.py .....                                              [ 57%]
+test_teach_back.py ........                                              [100%]
+
+================================== FAILURES ===================================
+_________________ test_best_hour_range_returns_highest_window _________________
+test_night_owl.py:21: in test_best_hour_range_returns_highest_window
+    assert start == 21
+E   assert 22 == 21
+============================== warnings summary ===============================
+app\config.py:3
+  C:\Users\Lenovo\Downloads\files (5)\app\config.py:3: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+app\schemas\__init__.py:9
+  C:\Users\Lenovo\Downloads\files (5)\app\schemas\__init__.py:9: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    subject: str = Field(..., example="DBMS")
+
+app\schemas\__init__.py:24
+  C:\Users\Lenovo\Downloads\files (5)\app\schemas\__init__.py:24: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    topic: str = Field(..., example="Normalisation always improves database performance")
+
+app\schemas\__init__.py:37
+  C:\Users\Lenovo\Downloads\files (5)\app\schemas\__init__.py:37: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    topic: str = Field(..., example="Recursion base case")
+
+app\schemas\__init__.py:80
+  C:\Users\Lenovo\Downloads\files (5)\app\schemas\__init__.py:80: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    topic: str = Field(..., example="Operating Systems")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED test_night_owl.py::test_best_hour_range_returns_highest_window - asser...
+================== 1 failed, 18 passed, 5 warnings in 0.71s ===================
