@@ -2,6 +2,48 @@ import { validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+const askAI = async (prompt, systemInstruction = '') => {
+  // Try Groq first (faster, higher limits for free tier)
+  if (GROQ_API_KEY) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            ...(systemInstruction ? [{ role: 'system', content: systemInstruction }] : []),
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.7,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.choices?.[0]?.message?.content?.trim();
+        if (text) return text;
+      }
+    } catch (e) { console.error('[Groq fallthrough]', e.message); }
+  }
+  // Fallback to Gemini
+  if (GEMINI_API_KEY) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const body = { contents: [{ parts: [{ text: prompt }] }] };
+    if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!response.ok) throw new Error(`Gemini API ${response.status}`);
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+  }
+  throw new Error('No AI provider available');
+};
+
 const checkValidation = (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -226,11 +268,52 @@ export const updateGoalProgress = async (req, res) => {
 };
 
 export const parseSms = async (req, res) => {
-  return sendSuccess(res, {
-    merchant: 'Swiggy',
-    amount_paise: 34000,
-    category: 'food',
-  });
+  const { sms_text } = req.body;
+  if (!sms_text) return sendError(res, 'VALIDATION_ERROR', 'sms_text is required.', 422);
+
+  const lower = sms_text.toLowerCase();
+
+  // Reject credit SMSes immediately (before any AI)
+  const isCreditSms = (lower.includes('credited') || lower.includes('received') || lower.includes('salary'))
+    && !lower.includes('debited') && !lower.includes('debit') && !lower.includes('spent') && !lower.includes('paid');
+  if (isCreditSms) {
+    return sendError(res, 'NOT_AN_EXPENSE', 'This is a credit SMS (money received). Please paste a debit/payment SMS to log an expense.', 400);
+  }
+
+  // ── Regex amount extraction — no AI, no hallucination ────────────────────
+  // Handles: "INR 100.00", "Rs.240", "₹240", "Rs 57000", "INR1,234.56"
+  const amountMatch = sms_text.match(/(?:INR|Rs\.?|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);
+  const amount_paise = amountMatch
+    ? Math.round(parseFloat(amountMatch[1].replace(/,/g, '')) * 100)
+    : 0;
+
+  if (amount_paise <= 0) {
+    return sendError(res, 'NOT_AN_EXPENSE', 'Could not find a valid debit amount in this SMS.', 400);
+  }
+
+  // ── Try to extract merchant from UPI-style SMS ────────────────────────────
+  // Patterns: "to MERCHANT via", "at MERCHANT on", "VPA merchant@upi"
+  const merchantMatch = sms_text.match(/\bto\s+([A-Z][A-Za-z0-9 &]{1,25}?)(?:\s+(?:via|on|ref|using)|[.,]|$)/i)
+    || sms_text.match(/\bat\s+([A-Z][A-Za-z0-9 &]{1,25}?)(?:\s+(?:via|on)|[.,]|$)/i);
+  const merchant = merchantMatch
+    ? merchantMatch[1].trim()
+    : (sms_text.match(/([A-Za-z ]+Bank[A-Za-z ]*)/i)?.[1]?.trim() || 'Bank Debit');
+
+  // If no UPI merchant found, it's likely a generic bank debit → category = bills
+  if (!merchantMatch) {
+    return sendSuccess(res, { merchant, amount_paise, category: 'bills' });
+  }
+
+  // ── Use AI only to classify the category for known merchants ─────────────
+  try {
+    const categoryPrompt = `What category does "${merchant}" fall into for a college student's expenses? Choose exactly one: food, transport, study, fun, bills, other. Reply with just the one word.`;
+    const categoryRaw = (await askAI(categoryPrompt)).toLowerCase().trim().split(/\s/)[0];
+    const validCategories = ['food', 'transport', 'study', 'fun', 'bills', 'other'];
+    const category = validCategories.includes(categoryRaw) ? categoryRaw : 'other';
+    return sendSuccess(res, { merchant, amount_paise, category });
+  } catch {
+    return sendSuccess(res, { merchant, amount_paise, category: 'other' });
+  }
 };
 
 export const parseReceipt = async (req, res) => {
@@ -248,8 +331,34 @@ export const parseVoice = async (req, res) => {
 };
 
 export const roast = async (req, res) => {
-  return sendSuccess(res, {
-    roast_text: 'Mock roast text',
-    cached: false,
-  });
+  try {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const [summaryResult, userResult] = await Promise.all([
+      query(
+        `SELECT category, SUM(amount_paise)::INTEGER AS total_paise
+         FROM expenses WHERE user_id = $1 AND deleted_at IS NULL AND TO_CHAR(logged_at, 'YYYY-MM') = $2
+         GROUP BY category ORDER BY total_paise DESC`,
+        [req.user.id, month]
+      ),
+      query(`SELECT name, monthly_budget FROM users WHERE id = $1`, [req.user.id]),
+    ]);
+
+    const userName = userResult.rows[0]?.name || 'buddy';
+    const budget = userResult.rows[0]?.monthly_budget || 800000;
+    const categories = summaryResult.rows;
+    const totalSpent = categories.reduce((s, r) => s + r.total_paise, 0);
+
+    const spendingSummary = categories.map(c => `${c.category}: ₹${Math.round(c.total_paise / 100)}`).join(', ');
+
+    const prompt = `Student name: ${userName}. Monthly budget: ₹${Math.round(budget / 100)}. Spent this month: ₹${Math.round(totalSpent / 100)}. Breakdown: ${spendingSummary || 'nothing yet'}.\n\nWrite ONE short, savage, funny roast about their spending. Max 2 sentences. Indian college student humor. Be brutally honest but funny.`;
+
+    const roastText = await askAI(prompt, 'You are a savage Indian standup comedian who roasts college students about their spending habits. Be funny, relatable, and use Indian slang.');
+
+    return sendSuccess(res, { roast_text: roastText, cached: false });
+  } catch (err) {
+    console.error('[Gemini Roast]', err.message);
+    return sendSuccess(res, { roast_text: "Your spending is so bad, even AI refused to roast you.", cached: false });
+  }
 };

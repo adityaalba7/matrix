@@ -112,7 +112,7 @@ export default function HomeDashboard() {
                 </svg>
               </div>
               <div>
-                <div className="text-[32px] font-display text-text-primary mb-1">₹{Math.round((dashData?.finance?.remaining_paise || 0) / 100)}</div>
+                <div className="text-[32px] font-display text-text-primary mb-1">₹{Math.round((dashData?.finance?.predicted_balance_paise || 0) / 100)}</div>
                 <div className="text-xs text-text-secondary font-medium tracking-wide">Remaining this month</div>
               </div>
             </Card>
