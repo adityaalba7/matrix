@@ -90,3 +90,35 @@ CREATE TABLE IF NOT EXISTS quiz_answers (
 
 CREATE INDEX IF NOT EXISTS idx_quiz_answers_session_id ON quiz_answers(session_id);
 CREATE INDEX IF NOT EXISTS idx_quiz_answers_spaced_rep ON quiz_answers(spaced_rep_due_at);
+
+CREATE TABLE IF NOT EXISTS interview_sessions (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  domain            VARCHAR(50) CHECK (domain IN ('cs', 'marketing', 'finance', 'hr', 'product', 'data')),
+  round_type        VARCHAR(20) CHECK (round_type IN ('hr', 'technical', 'mixed')),
+  company_target    VARCHAR(100),
+  total_questions   SMALLINT DEFAULT 5,
+  clarity_score     SMALLINT,
+  depth_score       SMALLINT,
+  confidence_score  SMALLINT,
+  structure_score   SMALLINT,
+  filler_word_count SMALLINT,
+  completed_at      TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_interview_sessions_user_id ON interview_sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS interview_answers (
+  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id            UUID NOT NULL REFERENCES interview_sessions(id) ON DELETE CASCADE,
+  question_text         TEXT NOT NULL,
+  answer_text           TEXT,
+  audio_s3_key          TEXT,
+  ai_feedback           TEXT,
+  filler_words_detected JSONB DEFAULT '[]',
+  follow_up_triggered   BOOLEAN DEFAULT FALSE,
+  question_index        SMALLINT NOT NULL,
+  answered_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_interview_answers_session_id ON interview_answers(session_id);
