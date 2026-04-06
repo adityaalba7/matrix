@@ -7,6 +7,8 @@ import authRoutes from './routes/auth.routes.js';
 import financeRoutes from './routes/finance.routes.js';
 import studyRoutes from './routes/study.routes.js';
 import interviewRoutes from './routes/interview.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
+import internalRoutes from './routes/internal.routes.js';
 import errorHandler from './middleware/error.js';
 
 dotenv.config();
@@ -33,6 +35,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/study', studyRoutes);
 app.use('/api/interview', interviewRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/internal', internalRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({
@@ -47,9 +51,13 @@ app.use(errorHandler);
 
 const PORT = parseInt(process.env.PORT || '5000');
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 TriMind API running on http://localhost:${PORT}`);
   console.log(`   Environment : ${process.env.NODE_ENV || 'development'}`);
+
+  await import('./cron/computeScores.js');
+  await import('./cron/dailyNudge.js');
+  console.log('⏰ Cron jobs initialized');
 });
 
 export default app;

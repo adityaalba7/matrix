@@ -122,3 +122,16 @@ CREATE TABLE IF NOT EXISTS interview_answers (
 );
 
 CREATE INDEX IF NOT EXISTS idx_interview_answers_session_id ON interview_answers(session_id);
+
+CREATE TABLE IF NOT EXISTS trimind_score_history (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  score               SMALLINT NOT NULL,
+  study_component     SMALLINT,
+  finance_component   SMALLINT,
+  interview_component SMALLINT,
+  computed_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_trimind_score_history_user_id ON trimind_score_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_trimind_score_history_computed_at ON trimind_score_history(computed_at);
