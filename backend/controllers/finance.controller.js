@@ -2,6 +2,7 @@ import { validationResult } from 'express-validator';
 import { query } from '../db/index.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { askAI } from '../utils/ai.js';
+import rewardService from '../services/reward.service.js';
 
 const checkValidation = (req, res) => {
   const errors = validationResult(req);
@@ -33,6 +34,46 @@ export const logExpense = async (req, res) => {
       logged_at || new Date(),
     ]
   );
+
+  // Award XP for logging expense
+  try {
+    await rewardService.awardXP(
+      req.user.id,
+      5, // 5 XP for logging an expense
+      'expense',
+      rows[0].id,
+      `Logged expense: ${category || 'general'}`
+    );
+
+    // Update streak
+    await rewardService.updateStreak(req.user.id);
+
+    // Check for budget adherence achievements
+    const now = new Date();
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const [spentResult, userResult] = await Promise.all([
+      query(
+        `SELECT COALESCE(SUM(amount_paise), 0)::INTEGER AS total_spent
+         FROM expenses
+         WHERE user_id = $1 AND deleted_at IS NULL AND TO_CHAR(logged_at, 'YYYY-MM') = $2`,
+        [req.user.id, month]
+      ),
+      query(`SELECT monthly_budget FROM users WHERE id = $1`, [req.user.id]),
+    ]);
+
+    const totalSpent = spentResult.rows[0].total_spent;
+    const monthlyBudget = userResult.rows[0].monthly_budget;
+
+    const budgetAdherence = monthlyBudget > 0 ? Math.round((monthlyBudget - totalSpent) / monthlyBudget * 100) : 0;
+
+    await rewardService.checkAchievements(req.user.id, 'finance', {
+      budgetAdherence: Math.max(0, budgetAdherence),
+    });
+  } catch (rewardError) {
+    console.error('Error processing rewards:', rewardError);
+    // Don't fail the request if reward processing fails
+  }
 
   return sendSuccess(res, { expense: rows[0] }, {}, 201);
 };

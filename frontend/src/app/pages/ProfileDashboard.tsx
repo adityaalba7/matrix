@@ -1,7 +1,10 @@
 import { Card } from "../components/ui/card";
-import { Trophy, Calendar, BookOpen, IndianRupee, Video, CheckCircle2, Lock, Download, Upload, Share2, Star, Github, Code2, RefreshCw, X, ExternalLink, TrendingUp, Award, Zap, Target, Flame, Activity, Users, Clock } from "lucide-react";
+import { Trophy, Calendar, BookOpen, IndianRupee, Video, CheckCircle2, Lock, Download, Upload, Share2, Star, Github, Code2, RefreshCw, X, ExternalLink, TrendingUp, Award, Zap, Target, Flame, Activity, Users, Clock, Plus, Briefcase } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import html2canvas from "html2canvas";
+import api from "../../lib/api";
+import { Link } from "react-router";
 import { useUser } from "../../lib/userContext";
 import {
   getProfile,
@@ -96,9 +99,20 @@ interface ProfileData {
 export default function ProfileDashboard() {
   const { user } = useUser();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [dashData, setDashData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState<'github' | 'leetcode' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const profileCardRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  // Goals state
+  const [goals, setGoals] = useState<any[]>([]);
+  const [goalsLoading, setGoalsLoading] = useState(true);
+  const [showAddGoal, setShowAddGoal] = useState(false);
+  const [newGoalTitle, setNewGoalTitle] = useState('');
+  const [newGoalAmount, setNewGoalAmount] = useState('');
+  const [addingGoal, setAddingGoal] = useState(false);
 
   // Modal states
   const [showGitHubModal, setShowGitHubModal] = useState(false);
@@ -108,21 +122,98 @@ export default function ProfileDashboard() {
 
   useEffect(() => {
     fetchProfileData();
+    fetchGoals();
   }, []);
+
+  const fetchGoals = async () => {
+    try {
+      const res = await api.get('/finance/goals');
+      setGoals(res.data.data.goals || []);
+    } catch (err) {
+      console.error('Failed to load goals', err);
+    } finally {
+      setGoalsLoading(false);
+    }
+  };
+
+  const handleAddGoal = async () => {
+    if (!newGoalTitle.trim() || !newGoalAmount) return;
+    setAddingGoal(true);
+    try {
+      await api.post('/finance/goals', {
+        title: newGoalTitle.trim(),
+        target_amount_paise: Math.round(parseFloat(newGoalAmount) * 100),
+      });
+      setNewGoalTitle('');
+      setNewGoalAmount('');
+      setShowAddGoal(false);
+      fetchGoals();
+    } catch (err) {
+      console.error('Failed to add goal', err);
+      alert('Failed to add goal. Try again.');
+    } finally {
+      setAddingGoal(false);
+    }
+  };
 
   const fetchProfileData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getProfile();
-      setProfileData(data);
-      if (data.github?.username) setGithubInput(data.github.username);
-      if (data.leetcode?.username) setLeetCodeInput(data.leetcode.username);
+      const [profileRes, dashRes] = await Promise.all([
+        getProfile(),
+        api.get('/dashboard').then(r => r.data.data).catch(() => null),
+      ]);
+      setProfileData(profileRes);
+      setDashData(dashRes);
+      if (profileRes.github?.username) setGithubInput(profileRes.github.username);
+      if (profileRes.leetcode?.username) setLeetCodeInput(profileRes.leetcode.username);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load profile data');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadProfile = async () => {
+    if (!profileCardRef.current) return;
+    setDownloading(true);
+    try {
+      const canvas = await html2canvas(profileCardRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+      });
+      const link = document.createElement('a');
+      link.download = `TriMind_Profile_${userData?.name?.replace(/\s+/g, '_') || 'Card'}.png`;
+      link.href = canvas.toDataURL('image/png', 1.0);
+      link.click();
+    } catch (err) {
+      console.error('Download failed', err);
+      alert('Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    const name = userData?.name || 'Student';
+    const score = userData?.trimind_score || 0;
+    const streak = userData?.streak_days || 0;
+    const leetSolved = profileData?.leetcode?.data?.profile?.total_solved || 0;
+    const budgetUsed = dashData?.finance?.budget_used_percent || 0;
+    const interviewSessions = dashData?.interview?.sessions_this_week || 0;
+
+    const message = `📊 *${name}'s TriMind Weekly Report*\n\n` +
+      `🏆 Life Score: *${score}/1000*\n` +
+      `🔥 Study Streak: *${streak} days*\n` +
+      `💻 LeetCode Solved: *${leetSolved} problems*\n` +
+      `💰 Budget Used: *${budgetUsed}% this month*\n` +
+      `🎤 Interview Sessions: *${interviewSessions} this week*\n\n` +
+      `Tracked by TriMind AI — Your Student Life OS 🚀`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
   };
 
   const handleGitHubConnect = async () => {
@@ -205,9 +296,16 @@ export default function ProfileDashboard() {
   const nextXp = 100;
   const progress = (xp / nextXp) * 100;
 
-  // Generate activity heatmap from GitHub data or fallback
-  const heatmap = profileData?.github?.data?.activity?.recent_activity?.map((a) => a.count) ||
-    Array.from({ length: 364 }, () => Math.random() > 0.4 ? Math.floor(Math.random() * 4) + 1 : 0);
+  // Generate activity heatmap from GitHub data
+  let heatmap = Array.from({ length: 364 }, () => 0);
+  if (profileData?.github?.data?.activity?.recent_activity) {
+    const recent = profileData.github.data.activity.recent_activity.map((a) => a.count);
+    const paddingCount = Math.max(0, 364 - recent.length);
+    heatmap = [...Array.from({ length: paddingCount }, () => 0), ...recent];
+  } else if (!profileData?.github?.username) {
+    // Show a sparse sample pattern for unconnected users
+    heatmap = Array.from({ length: 364 }, () => Math.random() > 0.8 ? Math.floor(Math.random() * 3) + 1 : 0);
+  }
 
   return (
     <div className="space-y-8 pb-10">
@@ -634,7 +732,7 @@ export default function ProfileDashboard() {
               { name: "Interview Ace", icon: Video, earned: true, color: "text-violet", bg: "bg-violet/10", border: "border-violet/20" },
               { name: "GitHub Star", icon: Github, earned: (profileData?.github?.data?.profile?.followers || 0) >= 10, color: "text-gray-700", bg: "bg-gray-700/10", border: "border-gray-700/20" },
               { name: "Problem Solver", icon: Zap, earned: (profileData?.leetcode?.data?.profile?.hard_solved || 0) >= 10, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
-              { name: "Contest Warrior", icon: Award, earned: (profileData?.leetcode?.data?.profile?.attended_contests || 0) >= 5, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+              { name: "Contest Warrior", icon: Award, earned: (profileData?.leetcode?.data?.contest_history?.attended_contests || 0) >= 5, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
               { name: "Top Coder", icon: TrendingUp, earned: (profileData?.leetcode?.data?.profile?.contest_rating || 0) >= 1500, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
             ].map((badge, i) => (
               <div key={i} className={`p-4 rounded-xl flex flex-col items-center justify-center gap-3 text-center transition-colors border ${badge.earned ? `${badge.bg} ${badge.border} hover:bg-elevated shadow-sm` : 'bg-primary-bg border-border-default grayscale opacity-60'}`}>
@@ -650,32 +748,100 @@ export default function ProfileDashboard() {
 
       {/* Goals and Other Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <Card className="p-6 bg-surface border border-border-default flex flex-col hover:bg-elevated transition-colors">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-lg bg-emerald/10 flex items-center justify-center text-emerald">
-              <Trophy className="w-5 h-5" />
+        <Card className="p-6 bg-surface border border-border-default flex flex-col">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald/10 flex items-center justify-center text-emerald">
+                <Trophy className="w-5 h-5" />
+              </div>
+              <h3 className="font-heading font-semibold text-[16px] text-text-primary">My Savings Goals</h3>
             </div>
-            <h3 className="font-heading font-semibold text-[16px] text-text-primary">My Goals</h3>
+            <button
+              onClick={() => setShowAddGoal(s => !s)}
+              className="p-2 rounded-lg bg-emerald/10 text-emerald hover:bg-emerald/20 transition-colors"
+              title="Add goal"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
           </div>
-          <div className="space-y-4 mb-6 flex-1">
-            <div className="flex justify-between items-center text-sm border-b border-border-default pb-3">
-              <span className="font-medium text-text-primary">GATE 2026 Countdown</span>
-              <span className="font-mono font-bold text-text-secondary bg-primary-bg px-2 py-1 rounded">21 Days</span>
-            </div>
-            <div className="flex justify-between items-center text-sm border-b border-border-default pb-3">
-              <span className="font-medium text-text-primary">LeetCode Problems</span>
-              <span className="font-mono font-bold text-text-secondary bg-primary-bg px-2 py-1 rounded">
-                {profileData?.leetcode?.data?.profile?.total_solved || 0}/500
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="font-medium text-text-primary">Mock Interview Target</span>
-              <span className="font-mono font-bold text-text-secondary bg-primary-bg px-2 py-1 rounded">7/10</span>
-            </div>
+
+          {/* Add Goal inline form */}
+          <AnimatePresence>
+            {showAddGoal && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="bg-primary-bg border border-border-default rounded-xl p-4 mb-4 space-y-3">
+                  <input
+                    type="text"
+                    value={newGoalTitle}
+                    onChange={e => setNewGoalTitle(e.target.value)}
+                    placeholder="Goal title (e.g. New Laptop)"
+                    className="w-full bg-surface border border-border-default rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald transition-colors"
+                  />
+                  <input
+                    type="number"
+                    value={newGoalAmount}
+                    onChange={e => setNewGoalAmount(e.target.value)}
+                    placeholder="Target amount (₹)"
+                    className="w-full bg-surface border border-border-default rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald transition-colors"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowAddGoal(false)} className="flex-1 py-2 text-xs font-bold bg-surface border border-border-default rounded-lg text-text-secondary hover:bg-elevated transition-colors">Cancel</button>
+                    <button
+                      onClick={handleAddGoal}
+                      disabled={addingGoal || !newGoalTitle.trim() || !newGoalAmount}
+                      className="flex-1 py-2 text-xs font-bold bg-emerald text-white rounded-lg hover:bg-emerald/90 transition-colors disabled:opacity-50"
+                    >
+                      {addingGoal ? 'Saving...' : 'Add Goal'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="space-y-3 mb-6 flex-1">
+            {goalsLoading ? (
+              <div className="text-center text-text-tertiary py-6 text-sm">Loading goals...</div>
+            ) : goals.length === 0 ? (
+              <div className="text-center py-8">
+                <Target className="w-10 h-10 text-text-tertiary mx-auto mb-3 opacity-50" />
+                <p className="text-sm text-text-secondary">No savings goals yet.</p>
+                <p className="text-xs text-text-tertiary mt-1">Click + to add your first goal!</p>
+              </div>
+            ) : (
+              goals.map((goal) => {
+                const pct = goal.target_amount_paise > 0
+                  ? Math.min(100, Math.round((goal.saved_amount_paise / goal.target_amount_paise) * 100))
+                  : 0;
+                return (
+                  <div key={goal.id} className="border border-border-default rounded-xl p-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-medium text-sm text-text-primary truncate max-w-[160px]" title={goal.title}>{goal.title}</span>
+                      <span className="font-mono text-xs font-bold text-emerald">{pct}%</span>
+                    </div>
+                    <div className="h-1.5 bg-primary-bg rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[11px] text-text-tertiary mt-1.5">
+                      <span>₹{Math.round(goal.saved_amount_paise / 100).toLocaleString()} saved</span>
+                      <span>₹{Math.round(goal.target_amount_paise / 100).toLocaleString()} target</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
-          <button className="w-full py-2.5 rounded-lg border border-border-default text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-primary-bg transition-colors mt-auto">
-            + Add New Goal
-          </button>
+          <Link
+            to="/finance"
+            className="w-full py-2.5 rounded-lg border border-border-default text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-primary-bg transition-colors mt-auto flex items-center justify-center gap-2"
+          >
+            <IndianRupee className="w-4 h-4" /> Manage in Finance
+          </Link>
         </Card>
 
         <Card className="p-6 bg-surface border border-border-default flex flex-col hover:bg-elevated transition-colors">
@@ -683,56 +849,111 @@ export default function ProfileDashboard() {
             <div className="w-10 h-10 rounded-lg bg-violet/10 flex items-center justify-center text-violet">
               <Star className="w-5 h-5" />
             </div>
-            <h3 className="font-heading font-semibold text-[16px] text-text-primary">Internship Readiness</h3>
+            <h3 className="font-heading font-semibold text-[16px] text-text-primary">Download Profile Card</h3>
           </div>
-          <div className="bg-primary-bg border border-border-default p-4 rounded-xl flex items-center justify-center mb-4 min-h-[120px] relative overflow-hidden">
-            <div className="absolute inset-0 border-2 border-violet/20 m-2 rounded border-dashed opacity-50"></div>
-            <div className="text-center z-10">
-              <div className="font-display text-xl text-text-primary mb-1">30-Day Program Complete</div>
-              <div className="text-xs font-mono font-bold text-violet uppercase tracking-widest">Certificate of Excellence</div>
+          <div ref={profileCardRef} className="bg-gradient-to-br from-[#1A0B2E] to-[#1A1D2E] border border-violet/30 p-5 rounded-xl mb-4 min-h-[120px] relative overflow-hidden">
+            <div className="flex items-center gap-3 mb-4">
+              <img
+                src={profileData?.github?.data?.profile?.avatar_url || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=80&auto=format&fit=crop"}
+                alt="Avatar"
+                crossOrigin="anonymous"
+                className="w-12 h-12 rounded-full border-2 border-violet/50"
+              />
+              <div>
+                <div className="font-bold text-white text-sm">{userData?.name || 'Student'}</div>
+                <div className="text-violet font-mono text-[10px] uppercase tracking-widest">{userData?.college || 'TriMind Student'}</div>
+              </div>
             </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="font-bold text-white text-sm">{userData?.trimind_score || 0}</div>
+                <div className="text-[9px] uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>Score</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="font-bold text-white text-sm">{userData?.streak_days || 0}d</div>
+                <div className="text-[9px] uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>Streak</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="font-bold text-white text-sm">{profileData?.leetcode?.data?.profile?.total_solved || 0}</div>
+                <div className="text-[9px] uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>Solved</div>
+              </div>
+            </div>
+            <div className="mt-3 text-center text-[9px] font-mono uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.3)' }}>@TriMind_AI</div>
           </div>
-          <button className="w-full py-2.5 bg-violet text-surface rounded-lg text-sm font-bold shadow-sm hover:bg-violet/90 transition-colors flex items-center justify-center gap-2 mt-auto">
-            <Download className="w-4 h-4" /> Download PDF
+          <button
+            onClick={handleDownloadProfile}
+            disabled={downloading}
+            className="w-full py-2.5 bg-violet text-surface rounded-lg text-sm font-bold shadow-sm hover:bg-violet/90 transition-colors flex items-center justify-center gap-2 mt-auto disabled:opacity-60"
+          >
+            <Download className="w-4 h-4" /> {downloading ? 'Generating...' : 'Download Profile Card'}
           </button>
         </Card>
 
-        <Card className="p-6 bg-surface border border-border-default flex flex-col hover:bg-elevated transition-colors">
+        <Card className="p-6 bg-surface border border-border-default flex flex-col">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-lg bg-saffron/10 flex items-center justify-center text-saffron">
-              <CheckCircle2 className="w-5 h-5" />
+              <Briefcase className="w-5 h-5" />
             </div>
-            <h3 className="font-heading font-semibold text-[16px] text-text-primary">Resume Gap Detector</h3>
+            <div>
+              <h3 className="font-heading font-semibold text-[16px] text-text-primary">Resume Gap Detector</h3>
+              <p className="text-xs text-text-secondary">AI-powered career gap analysis</p>
+            </div>
           </div>
-          <div className="mb-4">
-            <input type="text" value="Target: Google SWE" readOnly className="w-full bg-primary-bg border border-border-default rounded-lg px-3 py-2 text-sm font-bold text-text-primary outline-none" />
+
+          <div className="flex-1 space-y-3 mb-4">
+            <div className="bg-saffron/5 border border-saffron/20 rounded-xl p-4">
+              <p className="text-xs font-bold text-saffron uppercase tracking-widest mb-2">What it does</p>
+              <ul className="text-sm text-text-secondary space-y-1.5">
+                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald shrink-0 mt-0.5" /> Compares your resume to any company's requirements</li>
+                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald shrink-0 mt-0.5" /> Identifies critical skill gaps by priority</li>
+                <li className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-emerald shrink-0 mt-0.5" /> Generates a personalized 30-day action plan</li>
+              </ul>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-primary-bg rounded-lg p-2">
+                <div className="font-bold text-text-primary text-sm">Google</div>
+                <div className="text-[10px] text-text-tertiary">SWE</div>
+              </div>
+              <div className="bg-primary-bg rounded-lg p-2">
+                <div className="font-bold text-text-primary text-sm">Meta</div>
+                <div className="text-[10px] text-text-tertiary">Frontend</div>
+              </div>
+              <div className="bg-primary-bg rounded-lg p-2">
+                <div className="font-bold text-text-primary text-sm">Stripe</div>
+                <div className="text-[10px] text-text-tertiary">Backend</div>
+              </div>
+            </div>
           </div>
-          <div className="bg-saffron/5 border border-saffron/20 p-4 rounded-xl mb-4">
-            <p className="text-sm font-bold text-saffron mb-1">62% Ready</p>
-            <p className="text-xs font-medium text-text-secondary">3 skill gaps identified (System Design, Graph algos, Go).</p>
-          </div>
-          <div className="flex gap-2 mt-auto">
-            <button className="flex-1 py-2.5 bg-primary-bg border border-border-default text-text-primary rounded-lg text-sm font-bold hover:bg-border-default transition-colors flex items-center justify-center gap-2">
-              <Upload className="w-4 h-4" /> Upload
-            </button>
-            <button className="flex-1 py-2.5 bg-primary-bg border border-border-default text-text-primary rounded-lg text-sm font-bold hover:bg-border-default transition-colors">
-              Full Report →
-            </button>
-          </div>
+
+          <Link
+            to="/tools/resume-gap"
+            className="w-full py-2.5 bg-saffron text-surface rounded-lg text-sm font-bold shadow-sm hover:bg-saffron/90 transition-colors flex items-center justify-center gap-2 mt-auto"
+          >
+            <Briefcase className="w-4 h-4" /> Detect My Gaps
+          </Link>
         </Card>
 
-        <Card className="p-6 bg-emerald/10 border border-emerald/20 flex flex-col hover:bg-emerald/20 transition-colors cursor-pointer shadow-sm">
+        <Card className="p-6 bg-emerald/10 border border-emerald/20 flex flex-col hover:bg-emerald/20 transition-colors shadow-sm">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-emerald shadow-sm">
               <Share2 className="w-5 h-5" />
             </div>
             <h3 className="font-heading font-bold text-[16px] text-emerald">Parent Dashboard Share</h3>
           </div>
-          <p className="text-sm font-medium text-text-primary mb-4 leading-relaxed">
-            "{userData?.name || 'You'} studied 18 hrs, spent ₹3,200, and ranked #12 on the DSA leaderboard this week."
-          </p>
-          <button className="w-full py-3 bg-[#25D366] text-white rounded-lg text-sm font-bold shadow-md hover:bg-[#1DA851] transition-colors flex items-center justify-center gap-2 mt-auto">
-            Share to WhatsApp →
+          <div className="bg-white/60 dark:bg-surface border border-emerald/20 rounded-xl p-4 mb-4 space-y-2">
+            <p className="text-xs font-bold text-emerald uppercase tracking-widest mb-2">Live Preview</p>
+            <p className="text-sm font-medium text-text-primary leading-relaxed">
+              📊 <strong>{userData?.name || 'Student'}</strong> — TriMind Score: <strong>{userData?.trimind_score || 0}</strong>
+            </p>
+            <p className="text-sm text-text-secondary">🔥 Streak: <strong>{userData?.streak_days || 0} days</strong></p>
+            <p className="text-sm text-text-secondary">💰 Budget used: <strong>{dashData?.finance?.budget_used_percent || 0}%</strong></p>
+            <p className="text-sm text-text-secondary">🎤 Interviews this week: <strong>{dashData?.interview?.sessions_this_week || 0}</strong></p>
+          </div>
+          <button
+            onClick={handleWhatsAppShare}
+            className="w-full py-3 bg-[#25D366] text-white rounded-lg text-sm font-bold shadow-md hover:bg-[#1DA851] transition-colors flex items-center justify-center gap-2 mt-auto"
+          >
+            <Share2 className="w-4 h-4" /> Share to WhatsApp
           </button>
         </Card>
       </div>

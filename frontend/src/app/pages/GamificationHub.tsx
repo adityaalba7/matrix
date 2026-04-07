@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card } from "../components/ui/card";
 import { Trophy, Flame, Target, Lock, Crown, Swords, Share2, Hexagon, Video, BookOpen } from "lucide-react";
 import { motion } from "motion/react";
-import rewardApi, { RewardSummary, LeaderboardEntry, FriendChallenge, DailyTask } from "../lib/reward";
+import rewardApi, { RewardSummary, LeaderboardEntry, FriendChallenge, DailyTask } from "../../lib/reward";
 
 export default function GamificationHub() {
   const [loading, setLoading] = useState(true);

@@ -49,9 +49,9 @@ export const getProfile = async (req, res) => {
 
     const user = rows[0];
 
-    // Parse cached data if exists
-    const githubData = user.github_data ? JSON.parse(user.github_data) : null;
-    const leetcodeData = user.leetcode_data ? JSON.parse(user.leetcode_data) : null;
+    // Parse cached data if exists (postgres JSONB returns object directly)
+    const githubData = typeof user.github_data === 'string' ? JSON.parse(user.github_data) : user.github_data;
+    const leetcodeData = typeof user.leetcode_data === 'string' ? JSON.parse(user.leetcode_data) : user.leetcode_data;
 
     // Check if data needs refresh
     const githubNeedsRefresh =
@@ -111,16 +111,23 @@ export const updateGitHubUsername = async (req, res) => {
   }
 
   try {
-    // Validate username exists on GitHub
-    await fetchCompleteGitHubData(github_username);
+    // Validate username exists on GitHub and fetch data
+    const data = await fetchCompleteGitHubData(github_username);
 
-    // Update user record
+    // Update user record with username and data
     const { rows } = await query(
       `UPDATE users
-       SET github_username = $1, last_active_at = NOW()
-       WHERE id = $2
+       SET github_username = $1, github_data = $2, github_fetched_at = NOW(), last_active_at = NOW()
+       WHERE id = $3
        RETURNING github_username`,
-      [github_username, req.user.id]
+      [github_username, JSON.stringify(data), req.user.id]
+    );
+
+    // Also cache in Redis for faster access
+    await redisClient.setEx(
+      `user:${req.user.id}:github_data`,
+      CACHE_TTL_GITHUB,
+      JSON.stringify(data)
     );
 
     return sendSuccess(res, {
@@ -152,16 +159,25 @@ export const updateLeetCodeUsername = async (req, res) => {
   }
 
   try {
-    // Validate username exists on LeetCode
-    await fetchCompleteLeetCodeData(leetcode_username);
+    // Validate username exists on LeetCode and fetch data
+    const data = await fetchCompleteLeetCodeData(leetcode_username);
+    const skillLevel = calculateLeetCodeSkillLevel(data.profile);
 
-    // Update user record
+    // Update user record with username and data
+    const leetcodeData = { ...data, profile: { ...data.profile, skill_level: skillLevel } };
     const { rows } = await query(
       `UPDATE users
-       SET leetcode_username = $1, last_active_at = NOW()
-       WHERE id = $2
+       SET leetcode_username = $1, leetcode_data = $2, leetcode_fetched_at = NOW(), last_active_at = NOW()
+       WHERE id = $3
        RETURNING leetcode_username`,
-      [leetcode_username, req.user.id]
+      [leetcode_username, JSON.stringify(leetcodeData), req.user.id]
+    );
+
+    // Also cache in Redis for faster access
+    await redisClient.setEx(
+      `user:${req.user.id}:leetcode_data`,
+      CACHE_TTL_LEETCODE,
+      JSON.stringify(leetcodeData)
     );
 
     return sendSuccess(res, {
@@ -244,24 +260,25 @@ export const refreshLeetCodeData = async (req, res) => {
 
     // Calculate skill level
     const skillLevel = calculateLeetCodeSkillLevel(data.profile);
+    const leetcodeData = { ...data, profile: { ...data.profile, skill_level: skillLevel } };
 
     // Update cached data in database
     await query(
       `UPDATE users
        SET leetcode_data = $1, leetcode_fetched_at = NOW(), last_active_at = NOW()
        WHERE id = $2`,
-      [JSON.stringify({ ...data, skill_level: skillLevel }), req.user.id]
+      [JSON.stringify(leetcodeData), req.user.id]
     );
 
     // Also cache in Redis for faster access
     await redisClient.setEx(
       `user:${req.user.id}:leetcode_data`,
       CACHE_TTL_LEETCODE,
-      JSON.stringify({ ...data, skill_level: skillLevel })
+      JSON.stringify(leetcodeData)
     );
 
     return sendSuccess(res, {
-      data: { ...data, skill_level: skillLevel },
+      data: leetcodeData,
       message: 'LeetCode data refreshed successfully.',
     });
   } catch (err) {
@@ -342,9 +359,9 @@ export const getPublicProfile = async (req, res) => {
 
     const user = rows[0];
 
-    // Parse cached data if exists
-    const githubData = user.github_data ? JSON.parse(user.github_data) : null;
-    const leetcodeData = user.leetcode_data ? JSON.parse(user.leetcode_data) : null;
+    // Parse cached data if exists (postgres JSONB returns object directly)
+    const githubData = typeof user.github_data === 'string' ? JSON.parse(user.github_data) : user.github_data;
+    const leetcodeData = typeof user.leetcode_data === 'string' ? JSON.parse(user.leetcode_data) : user.leetcode_data;
 
     // Return only public data
     return sendSuccess(res, {

@@ -1,7 +1,8 @@
-const express = require('express');
-const router = express.Router();
-const rewardController = require('../controllers/reward.controller');
-const authMiddleware = require('../middleware/auth');
+import { Router } from 'express';
+import authMiddleware from '../middleware/auth.js';
+import * as rewardController from '../controllers/reward.controller.js';
+
+const router = Router();
 
 // All reward routes require authentication
 router.use(authMiddleware);
@@ -39,4 +40,4 @@ router.post('/award-xp', rewardController.awardXP);
 router.post('/update-streak', rewardController.updateStreak);
 router.post('/check-achievements', rewardController.checkAchievements);
 
-module.exports = router;
+export default router;

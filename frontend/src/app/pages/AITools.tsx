@@ -3,18 +3,15 @@ import { MessageCircle, Mic, FileText, Briefcase, Smile, RefreshCw, IndianRupee,
 import { Link } from "react-router";
 
 const aiTools = [
-  { id: "whatsapp", title: "WhatsApp Chat Parser", desc: "Paste group chat → AI detects exam dates → builds study plan", icon: MessageCircle, color: "emerald" },
   { id: "lecture", title: "Lecture Recorder", desc: "Record 10 mins → get notes + quiz instantly", icon: Mic, color: "violet" },
   { id: "notes", title: "Smart Notes Summarizer", desc: "Upload PDF → flashcards + 1-page summary", icon: FileText, color: "emerald" },
   { id: "resume-gap", title: "Resume Gap Detector", desc: "Upload resume + target company → 30-day roadmap", icon: Briefcase, color: "violet" },
-  { id: "mood", title: "Mood-Adaptive Session", desc: "Tell AI how you feel → session adjusts automatically", icon: Smile, color: "saffron" },
   { id: "spaced", title: "Spaced Repetition Engine", desc: "AI re-asks your wrong answers in disguise 3 days later", icon: RefreshCw, color: "emerald" },
   { id: "cgpa", title: "CGPA to Package Estimator", desc: "Enter CGPA + college tier → likely package range", icon: IndianRupee, color: "saffron" },
   { id: "scholarship", title: "Scholarship Radar", desc: "Based on your profile → find scholarships you qualify for", icon: GraduationCap, color: "emerald" },
-  { id: "sleep", title: "Sleep & Study Correlation", desc: "Log sleep → AI shows your peak performance pattern", icon: Moon, color: "violet" },
   { id: "roast", title: "Roast My Resume", desc: "Upload resume → get savage + actionable AI feedback", icon: Flame, color: "rose" },
   { id: "wrap", title: "Monthly Wrap", desc: "Spotify-style monthly recap → shareable story card", icon: Calendar, color: "violet" },
-  { id: "twin", title: "Student Twin Match", desc: "Find another student with same goals + gaps as you", icon: Users, color: "saffron" },
+  { id: "code", title: "Code Mentor", desc: "Paste broken code → AI explains the problem and the fix", icon: MessageCircle, color: "indigo" },
 ];
 
 export default function AITools() {

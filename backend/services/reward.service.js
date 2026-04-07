@@ -1,14 +1,12 @@
-const { Pool } = require('pg');
-const redis = require('../redis');
+import pool from '../db/index.js';
+import redisClient from '../db/redis.js';
 
 /**
  * Reward Service - Handles all reward-related business logic
  */
 class RewardService {
   constructor() {
-    this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
+    this.pool = pool;
   }
 
   /**
@@ -62,7 +60,7 @@ class RewardService {
 
       // Cache user XP in Redis
       const cacheKey = `user:${userId}:xp`;
-      await redis.setex(cacheKey, 3600, amount.toString());
+      await redisClient.setEx(cacheKey, 3600, amount.toString());
 
       return { success: true, xpTransactionId: xpResult.rows[0].id };
     } catch (error) {
@@ -116,7 +114,7 @@ class RewardService {
 
       // Update cache
       const cacheKey = `user:${userId}:xp`;
-      await redis.del(cacheKey);
+      await redisClient.del(cacheKey);
 
       return { success: true };
     } catch (error) {
@@ -862,4 +860,4 @@ class RewardService {
   }
 }
 
-module.exports = new RewardService();
+export default new RewardService();
