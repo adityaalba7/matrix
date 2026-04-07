@@ -1,18 +1,19 @@
 import { Link, useLocation } from "react-router";
-import { Home, BookOpen, IndianRupee, Video, User, Bell, Menu, X, Triangle, Trophy, Sparkles, Share } from "lucide-react";
+import { Home, BookOpen, IndianRupee, Video, User, Bell, Menu, X, Trophy, Sparkles, Share } from "lucide-react";
+import logo from "../../assets/logo.png";
 import { cn } from "../../lib/utils";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 const tabs = [
-  { name: "Home", path: "/", icon: Home, accent: "border-text-primary text-text-primary", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
-  { name: "Study", path: "/study", icon: BookOpen, accent: "border-emerald text-emerald", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
-  { name: "Finance", path: "/finance", icon: IndianRupee, accent: "border-saffron text-saffron", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
-  { name: "Interview", path: "/interview", icon: Video, accent: "border-violet text-violet", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
-  { name: "Profile", path: "/profile", icon: User, accent: "border-text-primary text-text-primary", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
-  { name: "Rewards", path: "/rewards", icon: Trophy, accent: "border-emerald text-emerald", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
-  { name: "AI Tools", path: "/tools", icon: Sparkles, accent: "border-violet text-violet", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
-  { name: "Share", path: "/share", icon: Share, accent: "border-saffron text-saffron", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "Home", path: "/app", icon: Home, accent: "border-text-primary text-text-primary", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "Study", path: "/app/study", icon: BookOpen, accent: "border-emerald text-emerald", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "Finance", path: "/app/finance", icon: IndianRupee, accent: "border-saffron text-saffron", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "Interview", path: "/app/interview", icon: Video, accent: "border-violet text-violet", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "Profile", path: "/app/profile", icon: User, accent: "border-text-primary text-text-primary", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "Rewards", path: "/app/rewards", icon: Trophy, accent: "border-emerald text-emerald", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "AI Tools", path: "/app/tools", icon: Sparkles, accent: "border-violet text-violet", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
+  { name: "Share", path: "/app/share", icon: Share, accent: "border-saffron text-saffron", bgHover: "hover:bg-white/5", activeBg: "bg-white/5" },
 ];
 
 export function Sidebar({ mobileOpen, setMobileOpen, userName }: { mobileOpen: boolean, setMobileOpen: (v: boolean) => void, userName?: string }) {
@@ -22,8 +23,8 @@ export function Sidebar({ mobileOpen, setMobileOpen, userName }: { mobileOpen: b
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-sidebar-bg">
       <div className="h-20 flex items-center px-6">
-        <Triangle className="w-7 h-7 text-white fill-white/20" />
-        <span className="ml-3 font-heading font-bold text-white text-xl tracking-wide lg:block md:hidden block">TriMind</span>
+        <img src={logo} alt="Manzil AI" className="w-8 h-8 object-contain" />
+        <span className="ml-3 font-heading font-bold text-white text-xl tracking-wide lg:block md:hidden block">Manzil AI</span>
         <button className="md:hidden ml-auto p-2" onClick={() => setMobileOpen(false)}>
           <X className="w-5 h-5 text-[#6B7080]" />
         </button>
@@ -97,6 +98,8 @@ export function Sidebar({ mobileOpen, setMobileOpen, userName }: { mobileOpen: b
   );
 }
 
+import { ThemeToggle } from './ThemeToggle';
+
 export function TopBar({ greeting = "Good morning, Aditya", onMenuClick }: { greeting?: string, onMenuClick: () => void }) {
   const location = useLocation();
   const path = location.pathname;
@@ -111,7 +114,7 @@ export function TopBar({ greeting = "Good morning, Aditya", onMenuClick }: { gre
         </button>
         <div className="flex flex-col">
           <div className="flex items-center gap-2 text-[13px] font-medium text-text-secondary mb-1">
-            <Link to="/" className="hover:text-text-primary transition-colors">Home</Link>
+            <Link to="/app" className="hover:text-text-primary transition-colors">Home</Link>
             <span>/</span>
             <span className="text-text-primary font-semibold">{currentTab.name}</span>
           </div>
@@ -122,6 +125,7 @@ export function TopBar({ greeting = "Good morning, Aditya", onMenuClick }: { gre
       <div className="flex items-center gap-6">
         <span className="hidden sm:block text-text-secondary text-sm font-medium">{currentDate}</span>
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           <button className="relative p-2 text-text-secondary hover:text-text-primary hover:bg-elevated rounded-full transition-colors">
             <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-saffron rounded-full border-2 border-primary-bg" />
             <Bell className="w-5 h-5" />

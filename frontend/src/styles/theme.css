@@ -1,51 +1,141 @@
+@layer base {
+  :root {
+    /* Light Mode Fundamentals */
+    --bg-main: #F7F6F2;
+    --bg-surface: #FFFFFF;
+    --bg-elevated: #F0EFF8;
+    --bg-sidebar: #1A1D2E; /* Kept dark by default in original design */
+    
+    --text-primary: #141417;
+    --text-secondary: #6B6B78;
+    --text-tertiary: #A8A8B3;
+    
+    --border-default: #E8E6DF;
+    --border-hover: #D1CFCA;
+
+    /* Base colors */
+    --c-saffron: #E8620A; 
+    --c-teal: #00D4AA;    
+    --c-emerald: #0EA882; 
+    --c-violet: #5B47E0;  
+    --c-rose: #D93B3B;  
+    --c-success: #16A34A;
+  }
+
+  .dark {
+    /* Nocturnal Editorial Overrides (Dark Mode) */
+    --bg-main: #0A0B14;
+    --bg-surface: #12131C;
+    --bg-elevated: #1E1F29;
+    --bg-sidebar: #12131C;
+    
+    --text-primary: #F0EEE6;
+    --text-secondary: #C9C4D8;
+    --text-tertiary: #928EA1;
+    
+    --border-default: rgba(255, 255, 255, 0.05);
+    --border-hover: rgba(123, 97, 255, 0.3);
+
+    /* Accent Neons */
+    --c-saffron: #FF7A1A;
+    --c-teal: #00D4AA;    
+    --c-emerald: #00D4AA;
+    --c-violet: #7B61FF;
+    --c-rose: #FF4D6D;
+    --c-success: #16A34A;
+  }
+}
+
 @theme {
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
   --font-display: 'Fraunces', serif;
   --font-heading: 'DM Sans', sans-serif;
+  
+  --font-headline: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  --font-label: 'Inter', sans-serif;
 
-  --color-primary-bg: #F7F6F2;
-  --color-surface: #FFFFFF;
-  --color-elevated: #F0EFF8;
-  --color-sidebar-bg: #1A1D2E;
+  --color-primary-bg: var(--bg-main);
+  --color-app-bg: var(--bg-main);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-sidebar-bg: var(--bg-sidebar);
 
-  --color-saffron: #E8620A; 
-  --color-teal: #00D4AA;    
-  --color-emerald: #0EA882; 
-  --color-violet: #5B47E0;  
-  --color-rose: #D93B3B;    
-  --color-success: #16A34A;
+  --color-saffron: var(--c-saffron); 
+  --color-teal: var(--c-teal);    
+  --color-emerald: var(--c-emerald); 
+  --color-violet: var(--c-violet);  
+  --color-rose: var(--c-rose);    
+  --color-success: var(--c-success);
 
-  --color-text-primary: #141417;
-  --color-text-secondary: #6B6B78;
-  --color-text-tertiary: #A8A8B3;
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
 
-  --color-border-default: #E8E6DF;
-  --color-border-hover: #D1CFCA;
+  --color-border-default: var(--border-default);
+  --color-border-hover: var(--border-hover);
+  
+  /* Additional Stitch specific colors used */
+  --color-surface-container: #1e1f29;
+  --color-surface-container-high: #282933;
+  --color-surface-container-low: #1a1b24;
+  --color-surface-container-lowest: #0d0e17;
 }
 
 @layer base {
   body {
-    @apply bg-primary-bg text-text-primary font-sans antialiased selection:bg-emerald selection:text-surface;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  ::selection {
+    background-color: var(--c-emerald);
+    color: var(--bg-surface);
   }
 }
 
 @layer components {
-  .trimind-card {
-    @apply bg-surface rounded-xl border border-border-default transition-all duration-300;
+  .manzil-card {
+    background-color: var(--bg-surface);
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-default);
+    transition: all 300ms;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   }
   
-  .trimind-card:hover {
-    @apply bg-elevated;
+  .manzil-card:hover {
+    background-color: var(--bg-elevated);
   }
 
   .font-clash {
-    @apply font-display font-medium;
+    font-family: var(--font-display);
+    font-weight: 500;
   }
   
   .font-syne {
-    @apply font-heading;
+    font-family: var(--font-heading);
+  }
+
+  .glass-card {
+    background: rgba(30, 31, 41, 0.6);
+    backdrop-filter: blur(20px);
+  }
+
+  .focus-orb {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(123, 97, 255, 0.08) 0%, rgba(123, 97, 255, 0) 70%);
+    border-radius: 50%;
+    filter: blur(80px);
+    z-index: -1;
+  }
+
+  .glow-top {
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
   }
 
   .hide-scrollbar::-webkit-scrollbar {

@@ -837,7 +837,7 @@ export default function ProfileDashboard() {
             )}
           </div>
           <Link
-            to="/finance"
+            to="/app/finance"
             className="w-full py-2.5 rounded-lg border border-border-default text-sm font-semibold text-text-secondary hover:text-text-primary hover:bg-primary-bg transition-colors mt-auto flex items-center justify-center gap-2"
           >
             <IndianRupee className="w-4 h-4" /> Manage in Finance
@@ -926,7 +926,7 @@ export default function ProfileDashboard() {
           </div>
 
           <Link
-            to="/tools/resume-gap"
+            to="/app/tools/resume-gap"
             className="w-full py-2.5 bg-saffron text-surface rounded-lg text-sm font-bold shadow-sm hover:bg-saffron/90 transition-colors flex items-center justify-center gap-2 mt-auto"
           >
             <Briefcase className="w-4 h-4" /> Detect My Gaps

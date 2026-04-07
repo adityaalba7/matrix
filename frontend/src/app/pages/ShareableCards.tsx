@@ -1,5 +1,5 @@
 import { Card } from "../components/ui/card";
-import { Download, Share2, Flame, BookOpen, Crown, Calendar, Loader2 } from "lucide-react";
+import { Download, Share2, Flame, Crown, Calendar, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { useEffect, useState } from "react";
 import api from "../../lib/api";

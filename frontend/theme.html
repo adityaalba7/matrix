@@ -1,0 +1,51 @@
+:root {
+  /* Backgrounds */
+  --app-bg: #0A0B14;
+  --surface-bg: #111320;
+  --elevated-surface-bg: #181B2E;
+
+  /* Text */
+  --text-primary: #F0EEE6;
+  --text-secondary: #8A8FA8;
+  --text-tertiary: #3E4260;
+
+  /* Borders */
+  --border-color: rgba(255, 255, 255, 0.07);
+
+  /* Accents */
+  --accent-emerald: #00D4AA;
+  --accent-saffron: #FF7A1A;
+  --accent-violet: #7B61FF;
+  --accent-rose: #FF4D6D;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--text-primary);
+  font-family: 'Manrope', sans-serif;
+}
+
+.card {
+  background-color: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.card-elevated {
+  background-color: var(--elevated-surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.border-subtle {
+  border-color: var(--border-color);
+}

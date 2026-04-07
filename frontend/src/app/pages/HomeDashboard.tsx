@@ -30,7 +30,7 @@ function ArcGauge({ value, max, label }: { value: number, max: number, label: st
 
   return (
     <Card className="p-8 w-full flex flex-col items-center justify-center bg-surface relative overflow-hidden shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] border-none">
-      <h2 className="text-center font-heading text-text-primary text-lg font-bold tracking-wide mb-6">TriMind Life Score</h2>
+      <h2 className="text-center font-heading text-text-primary text-lg font-bold tracking-wide mb-6">Manzil Life Score</h2>
       <div className="relative flex flex-col items-center justify-center w-[280px] h-[280px] mx-auto mb-2">
         <svg className="w-full h-full absolute top-0 left-0 overflow-visible" viewBox="0 0 280 280">
           <defs>
@@ -89,7 +89,7 @@ export default function HomeDashboard() {
       </section>
       <section>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <Link to="/study" className="block">
+          <Link to="/app/study" className="block">
             <Card className="h-full p-6 flex flex-col justify-between border-t-[3px] border-t-emerald bg-surface hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
               <div className="flex justify-between items-start mb-6">
                 <BookOpen className="w-7 h-7 text-emerald" />
@@ -103,7 +103,7 @@ export default function HomeDashboard() {
               </div>
             </Card>
           </Link>
-          <Link to="/finance" className="block">
+          <Link to="/app/finance" className="block">
             <Card className="h-full p-6 flex flex-col justify-between border-t-[3px] border-t-saffron bg-surface hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
               <div className="flex justify-between items-start mb-6">
                 <IndianRupee className="w-7 h-7 text-saffron" />
@@ -117,7 +117,7 @@ export default function HomeDashboard() {
               </div>
             </Card>
           </Link>
-          <Link to="/interview" className="block">
+          <Link to="/app/interview" className="block">
             <Card className="h-full p-6 flex flex-col justify-between border-t-[3px] border-t-violet bg-surface hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
               <div className="flex justify-between items-start mb-6">
                 <Video className="w-7 h-7 text-violet" />
@@ -145,10 +145,10 @@ export default function HomeDashboard() {
               </p>
             </div>
             <div className="flex gap-3 pl-14">
-              <Link to="/study" className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-emerald text-surface hover:bg-emerald/90 transition-colors shadow-sm">
+              <Link to="/app/study" className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-emerald text-surface hover:bg-emerald/90 transition-colors shadow-sm">
                 <Zap className="w-4 h-4" /> Start revision
               </Link>
-              <Link to="/finance" className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-transparent border border-border-default text-text-secondary hover:text-text-primary hover:bg-elevated transition-colors">
+              <Link to="/app/finance" className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-transparent border border-border-default text-text-secondary hover:text-text-primary hover:bg-elevated transition-colors">
                 See budget
               </Link>
             </div>
@@ -173,10 +173,10 @@ export default function HomeDashboard() {
       <section>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Start Quiz", icon: Zap, to: "/study" },
-            { label: "Log Expense", icon: IndianRupee, to: "/finance" },
-            { label: "Mock Interview", icon: Video, to: "/interview" },
-            { label: "View Goals", icon: Target, to: "/profile" }
+            { label: "Start Quiz", icon: Zap, to: "/app/study" },
+            { label: "Log Expense", icon: IndianRupee, to: "/app/finance" },
+            { label: "Mock Interview", icon: Video, to: "/app/interview" },
+            { label: "View Goals", icon: Target, to: "/app/profile" }
           ].map((action, i) => (
             <Link key={i} to={action.to} className="block">
               <Card className="p-4 flex items-center justify-between group bg-surface border-border-default hover:bg-elevated cursor-pointer">

@@ -24,13 +24,14 @@ export default function RootLayout() {
   }, []);
 
   let greeting = user ? `Good morning, ${user.name.split(' ')[0]}` : "Good morning";
-  if (location.pathname === "/study") greeting = "Study Focus";
-  if (location.pathname === "/finance") greeting = "Finance Tracker";
-  if (location.pathname === "/interview") greeting = "Interview Prep";
-  if (location.pathname === "/profile") greeting = "Your Profile";
-  if (location.pathname === "/rewards") greeting = "Gamification Hub";
-  if (location.pathname === "/tools") greeting = "AI Tools";
-  if (location.pathname === "/share") greeting = "Shareable Cards";
+  if (location.pathname === "/app" || location.pathname === "/app/") greeting = `Good morning, ${user?.name?.split(' ')[0] || 'there'}`;
+  if (location.pathname === "/app/study") greeting = "Study Focus";
+  if (location.pathname === "/app/finance") greeting = "Finance Tracker";
+  if (location.pathname === "/app/interview") greeting = "Interview Prep";
+  if (location.pathname === "/app/profile") greeting = "Your Profile";
+  if (location.pathname === "/app/rewards") greeting = "Gamification Hub";
+  if (location.pathname === "/app/tools" || location.pathname.startsWith("/app/tools")) greeting = "AI Tools";
+  if (location.pathname === "/app/share") greeting = "Shareable Cards";
 
   return (
     <AuthGuard>

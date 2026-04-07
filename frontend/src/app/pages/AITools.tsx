@@ -19,7 +19,7 @@ export default function AITools() {
     <div className="space-y-6 pb-10">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {aiTools.map((tool) => (
-          <Link key={tool.id} to={`/tools/${tool.id}`} className="block h-full">
+          <Link key={tool.id} to={`/app/tools/${tool.id}`} className="block h-full">
             <Card className="p-5 h-full flex flex-col bg-surface border border-border-default hover:bg-elevated transition-colors cursor-pointer group">
               <div className="flex items-start justify-between mb-4">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-${tool.color}/10 text-${tool.color} shrink-0`}>
