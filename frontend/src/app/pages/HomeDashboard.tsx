@@ -2,6 +2,9 @@ import { Card } from "../components/ui/card";
 import { BookOpen, IndianRupee, Video, Flame, BrainCircuit, ArrowRight, Zap, Target } from "lucide-react";
 import { Link } from "react-router";
 import { motion } from "motion/react";
+import { useState, useEffect } from "react";
+import { useUser } from "../../lib/userContext";
+import api from "../../lib/api";
 
 function ArcGauge({ value, max, label }: { value: number, max: number, label: string }) {
   const radius = 110;
@@ -13,29 +16,21 @@ function ArcGauge({ value, max, label }: { value: number, max: number, label: st
 
   const getCoordinatesForAngle = (angle: number) => {
     const radians = (angle * Math.PI) / 180;
-    return {
-      x: cx + radius * Math.cos(radians),
-      y: cy + radius * Math.sin(radians)
-    };
+    return { x: cx + radius * Math.cos(radians), y: cy + radius * Math.sin(radians) };
   };
 
   const start = getCoordinatesForAngle(startAngle);
   const end = getCoordinatesForAngle(startAngle + sweepAngle);
   const largeArcFlag = sweepAngle > 180 ? 1 : 0;
-  const pathData = [
-    `M ${start.x} ${start.y}`,
-    `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`
-  ].join(" ");
+  const pathData = [`M ${start.x} ${start.y}`, `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`].join(" ");
 
   const progress = value / max;
   const length = circumference * 0.75;
-  const strokeDasharray = length;
   const strokeDashoffset = length * (1 - progress);
 
   return (
     <Card className="p-8 w-full flex flex-col items-center justify-center bg-surface relative overflow-hidden shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] border-none">
       <h2 className="text-center font-heading text-text-primary text-lg font-bold tracking-wide mb-6">Manzil Life Score</h2>
-      
       <div className="relative flex flex-col items-center justify-center w-[280px] h-[280px] mx-auto mb-2">
         <svg className="w-full h-full absolute top-0 left-0 overflow-visible" viewBox="0 0 280 280">
           <defs>
@@ -45,20 +40,10 @@ function ArcGauge({ value, max, label }: { value: number, max: number, label: st
               <stop offset="100%" stopColor="#E8620A" />
             </linearGradient>
           </defs>
-          <path
-            d={pathData}
-            fill="none"
-            stroke="#E8E6DF"
-            strokeWidth="18"
-            strokeLinecap="round"
-          />
+          <path d={pathData} fill="none" stroke="#E8E6DF" strokeWidth="18" strokeLinecap="round" />
           <motion.path
-            d={pathData}
-            fill="none"
-            stroke="url(#score-gradient)"
-            strokeWidth="18"
-            strokeLinecap="round"
-            strokeDasharray={strokeDasharray}
+            d={pathData} fill="none" stroke="url(#score-gradient)" strokeWidth="18" strokeLinecap="round"
+            strokeDasharray={length}
             initial={{ strokeDashoffset: length }}
             animate={{ strokeDashoffset }}
             transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
@@ -69,9 +54,7 @@ function ArcGauge({ value, max, label }: { value: number, max: number, label: st
             <span className="font-display text-[72px] leading-none text-text-primary">{value}</span>
           </div>
           <span className="text-text-secondary text-[15px] font-medium tracking-wide mt-2 mb-3 font-mono">/ {max}</span>
-          <span className="px-3.5 py-1.5 rounded-full bg-emerald/10 text-emerald text-[13px] font-bold tracking-wide uppercase border border-emerald/20">
-            {label}
-          </span>
+          <span className="px-3.5 py-1.5 rounded-full bg-emerald/10 text-emerald text-[13px] font-bold tracking-wide uppercase border border-emerald/20">{label}</span>
         </div>
       </div>
     </Card>
@@ -79,10 +62,30 @@ function ArcGauge({ value, max, label }: { value: number, max: number, label: st
 }
 
 export default function HomeDashboard() {
+  const { user } = useUser();
+  const [dashData, setDashData] = useState<any>(null);
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [dashRes, streakRes] = await Promise.all([
+          api.get('/dashboard').then(r => r.data.data).catch(() => null),
+          api.get('/study/streak').then(r => r.data.data).catch(() => ({ current_streak: 0 })),
+        ]);
+        if (dashRes) setDashData(dashRes);
+        setStreak(streakRes?.current_streak || 0);
+      } catch { /* silent */ }
+    };
+    fetchData();
+  }, []);
+
+  const score = user?.trimind_score || dashData?.trimind_score || 0;
+
   return (
     <div className="space-y-8 pb-10">
       <section>
-        <ArcGauge value={712} max={1000} label="Top 18% This Week" />
+        <ArcGauge value={score} max={1000} label={score > 500 ? "Great Progress" : "Getting Started"} />
       </section>
       <section>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -95,12 +98,11 @@ export default function HomeDashboard() {
                 </svg>
               </div>
               <div>
-                <div className="text-[32px] font-display text-text-primary mb-1">12</div>
+                <div className="text-[32px] font-display text-text-primary mb-1">{dashData?.study?.topics_studied || 0}</div>
                 <div className="text-xs text-text-secondary font-medium tracking-wide">Topics Strong</div>
               </div>
             </Card>
           </Link>
-
           <Link to="/finance" className="block">
             <Card className="h-full p-6 flex flex-col justify-between border-t-[3px] border-t-saffron bg-surface hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
               <div className="flex justify-between items-start mb-6">
@@ -110,12 +112,11 @@ export default function HomeDashboard() {
                 </svg>
               </div>
               <div>
-                <div className="text-[32px] font-display text-text-primary mb-1">₹3.2k</div>
-                <div className="text-xs text-text-secondary font-medium tracking-wide">Remaining this week</div>
+                <div className="text-[32px] font-display text-text-primary mb-1">₹{Math.round((dashData?.finance?.predicted_balance_paise || 0) / 100)}</div>
+                <div className="text-xs text-text-secondary font-medium tracking-wide">Remaining this month</div>
               </div>
             </Card>
           </Link>
-
           <Link to="/interview" className="block">
             <Card className="h-full p-6 flex flex-col justify-between border-t-[3px] border-t-violet bg-surface hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
               <div className="flex justify-between items-start mb-6">
@@ -125,7 +126,7 @@ export default function HomeDashboard() {
                 </svg>
               </div>
               <div>
-                <div className="text-[32px] font-display text-text-primary mb-1">74</div>
+                <div className="text-[32px] font-display text-text-primary mb-1">{dashData?.interview?.avg_score || 0}</div>
                 <div className="text-xs text-text-secondary font-medium tracking-wide">Avg Session Score</div>
               </div>
             </Card>
@@ -140,17 +141,16 @@ export default function HomeDashboard() {
                 <BrainCircuit className="w-5 h-5 text-saffron" />
               </div>
               <p className="text-[15px] font-medium leading-relaxed font-sans text-text-primary pt-1">
-                Interview Friday. You've spent 40% of budget. <span className="text-saffron font-bold">Skip Zomato today</span> and revise OS.
+                {dashData?.nudge || "Complete a quiz to get personalized AI nudges!"}
               </p>
             </div>
             <div className="flex gap-3 pl-14">
-              <button className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-emerald text-surface hover:bg-emerald/90 transition-colors shadow-sm">
-                <Zap className="w-4 h-4" />
-                Start revision
-              </button>
-              <button className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-transparent border border-border-default text-text-secondary hover:text-text-primary hover:bg-elevated transition-colors">
+              <Link to="/study" className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-emerald text-surface hover:bg-emerald/90 transition-colors shadow-sm">
+                <Zap className="w-4 h-4" /> Start revision
+              </Link>
+              <Link to="/finance" className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-transparent border border-border-default text-text-secondary hover:text-text-primary hover:bg-elevated transition-colors">
                 See budget
-              </button>
+              </Link>
             </div>
           </Card>
         </section>
@@ -161,16 +161,10 @@ export default function HomeDashboard() {
             </div>
             <div className="flex-1 pr-2">
               <div className="flex justify-between items-end mb-3">
-                <span className="font-heading font-bold text-lg text-text-primary">14-Day Streak</span>
-                <span className="text-sm font-mono font-bold text-text-secondary bg-elevated px-2 py-1 rounded-md">Lvl 12</span>
+                <span className="font-heading font-bold text-lg text-text-primary">{streak}-Day Streak</span>
               </div>
               <div className="h-2 w-full bg-elevated rounded-full overflow-hidden">
-                <motion.div 
-                  className="h-full bg-saffron rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: "65%" }}
-                  transition={{ duration: 1, delay: 0.5 }}
-                />
+                <motion.div className="h-full bg-saffron rounded-full" initial={{ width: 0 }} animate={{ width: `${Math.min(streak * 7, 100)}%` }} transition={{ duration: 1, delay: 0.5 }} />
               </div>
             </div>
           </Card>
@@ -198,7 +192,6 @@ export default function HomeDashboard() {
           ))}
         </div>
       </section>
-
     </div>
   );
 }

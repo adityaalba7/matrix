@@ -1,4 +1,3 @@
-import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -9,6 +8,8 @@ import studyRoutes from './routes/study.routes.js';
 import interviewRoutes from './routes/interview.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import internalRoutes from './routes/internal.routes.js';
+import profileRoutes, { publicRouter as publicProfileRoutes } from './routes/profile.routes.js';
+import rewardRoutes from './routes/reward.routes.js';
 import errorHandler from './middleware/error.js';
 
 dotenv.config();
@@ -37,6 +38,9 @@ app.use('/api/study', studyRoutes);
 app.use('/api/interview', interviewRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/internal', internalRoutes);
+app.use('/api/profile', profileRoutes);
+app.use('/api/public', publicProfileRoutes);
+app.use('/api/rewards', rewardRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({

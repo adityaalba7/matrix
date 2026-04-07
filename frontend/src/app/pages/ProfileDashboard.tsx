@@ -1,43 +1,264 @@
 import { Card } from "../components/ui/card";
-import { Trophy, Calendar, BookOpen, IndianRupee, Video, CheckCircle2, Lock, Download, Upload, Share2, Star } from "lucide-react";
-import { motion } from "motion/react";
+import { Trophy, Calendar, BookOpen, IndianRupee, Video, CheckCircle2, Lock, Download, Upload, Share2, Star, Github, Code2, RefreshCw, X, ExternalLink, TrendingUp, Award, Zap, Target, Flame, Activity, Users, Clock } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { useState, useEffect } from "react";
+import { useUser } from "../../lib/userContext";
+import {
+  getProfile,
+  updateGitHubUsername,
+  updateLeetCodeUsername,
+  refreshGitHubData,
+  refreshLeetCodeData,
+  removeGitHubUsername,
+  removeLeetCodeUsername,
+} from "../../lib/profile";
+
+interface GitHubData {
+  profile: {
+    username: string;
+    name: string;
+    avatar_url: string;
+    bio: string;
+    location: string;
+    company: string;
+    public_repos: number;
+    followers: number;
+    following: number;
+  };
+  repos: Array<{
+    name: string;
+    description: string;
+    language: string;
+    stars: number;
+    forks: number;
+    url: string;
+  }>;
+  activity: {
+    recent_activity: Array<{ date: string; count: number }>;
+  };
+}
+
+interface LeetCodeData {
+  profile: {
+    username: string;
+    real_name: string;
+    avatar: string;
+    total_solved: number;
+    easy_solved: number;
+    medium_solved: number;
+    hard_solved: number;
+    contest_rating: number;
+    contest_ranking: number;
+    skill_level: string;
+  };
+  recent_submissions: Array<{
+    title: string;
+    statusDisplay: string;
+    lang: string;
+    timestamp: number;
+  }>;
+  contest_history: {
+    current_rating: number;
+    global_ranking: number;
+    top_percentage: number;
+    attended_contests: number;
+    history: Array<{
+      title: string;
+      rating: number;
+      ranking: number;
+    }>;
+  };
+}
+
+interface ProfileData {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    college: string;
+    trimind_score: number;
+    streak_days: number;
+  };
+  github: {
+    username: string | null;
+    data: GitHubData | null;
+    needs_refresh: boolean;
+    fetched_at: string | null;
+  };
+  leetcode: {
+    username: string | null;
+    data: LeetCodeData | null;
+    needs_refresh: boolean;
+    fetched_at: string | null;
+  };
+}
 
 export default function ProfileDashboard() {
-  const level = 12;
-  const xp = 3450;
-  const nextXp = 5000;
-  const title = "Focused Scholar";
+  const { user } = useUser();
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState<'github' | 'leetcode' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Modal states
+  const [showGitHubModal, setShowGitHubModal] = useState(false);
+  const [showLeetCodeModal, setShowLeetCodeModal] = useState(false);
+  const [githubInput, setGithubInput] = useState('');
+  const [leetcodeInput, setLeetCodeInput] = useState('');
+
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
+
+  const fetchProfileData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getProfile();
+      setProfileData(data);
+      if (data.github?.username) setGithubInput(data.github.username);
+      if (data.leetcode?.username) setLeetCodeInput(data.leetcode.username);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGitHubConnect = async () => {
+    try {
+      await updateGitHubUsername(githubInput);
+      setShowGitHubModal(false);
+      await fetchProfileData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to connect GitHub account');
+    }
+  };
+
+  const handleLeetCodeConnect = async () => {
+    try {
+      await updateLeetCodeUsername(leetcodeInput);
+      setShowLeetCodeModal(false);
+      await fetchProfileData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to connect LeetCode account');
+    }
+  };
+
+  const handleRefreshGitHub = async () => {
+    try {
+      setRefreshing('github');
+      await refreshGitHubData();
+      await fetchProfileData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to refresh GitHub data');
+    } finally {
+      setRefreshing(null);
+    }
+  };
+
+  const handleRefreshLeetCode = async () => {
+    try {
+      setRefreshing('leetcode');
+      await refreshLeetCodeData();
+      await fetchProfileData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to refresh LeetCode data');
+    } finally {
+      setRefreshing(null);
+    }
+  };
+
+  const handleRemoveGitHub = async () => {
+    try {
+      await removeGitHubUsername();
+      await fetchProfileData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to remove GitHub account');
+    }
+  };
+
+  const handleRemoveLeetCode = async () => {
+    try {
+      await removeLeetCodeUsername();
+      await fetchProfileData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to remove LeetCode account');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet"></div>
+      </div>
+    );
+  }
+
+  const userData = profileData?.user || user;
+  const trimindScore = userData?.trimind_score || 0;
+  const streakDays = userData?.streak_days || 0;
+
+  // Calculate level based on score
+  const level = Math.floor(trimindScore / 100) + 1;
+  const xp = trimindScore % 100;
+  const nextXp = 100;
   const progress = (xp / nextXp) * 100;
 
-  const heatmap = Array.from({ length: 364 }, () => Math.random() > 0.4 ? Math.floor(Math.random() * 4) + 1 : 0);
+  // Generate activity heatmap from GitHub data or fallback
+  const heatmap = profileData?.github?.data?.activity?.recent_activity?.map((a) => a.count) ||
+    Array.from({ length: 364 }, () => Math.random() > 0.4 ? Math.floor(Math.random() * 4) + 1 : 0);
 
   return (
     <div className="space-y-8 pb-10">
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-rose/10 border border-rose/20 text-rose px-4 py-3 rounded-lg flex items-center gap-3"
+        >
+          <X className="w-5 h-5 cursor-pointer" onClick={() => setError(null)} />
+          <span className="text-sm font-medium">{error}</span>
+        </motion.div>
+      )}
+
+      {/* Profile Header */}
       <Card className="flex flex-col md:flex-row items-center md:items-start gap-8 bg-surface p-8 relative overflow-hidden border-border-default border-t-[3px] border-t-violet">
-        
         <div className="relative shrink-0 z-10">
           <div className="w-24 h-24 rounded-full bg-surface border border-border-default overflow-hidden shadow-sm">
-            <img src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=150&auto=format&fit=crop" alt="Profile" className="w-full h-full object-cover" />
+            <img
+              src={profileData?.github?.data?.profile?.avatar_url || "https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=150&auto=format&fit=crop"}
+              alt="Profile"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="absolute -bottom-2 -right-2 bg-saffron text-surface font-mono text-sm font-bold w-10 h-10 rounded-full flex items-center justify-center border-[3px] border-surface shadow-sm z-20">
             {level}
           </div>
         </div>
-        
+
         <div className="flex-1 flex flex-col items-center md:items-start z-10 w-full pt-1">
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="font-display text-[28px] text-text-primary leading-none">Aditya Sharma</h1>
-            <span className="bg-violet/10 text-violet px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border border-violet/20">Pro Plan</span>
+            <h1 className="font-display text-[28px] text-text-primary leading-none">
+              {profileData?.github?.data?.profile?.name || userData?.name || 'User'}
+            </h1>
+            <span className="bg-violet/10 text-violet px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border border-violet/20">
+              Pro Plan
+            </span>
           </div>
-          <p className="text-text-secondary font-sans text-sm font-medium mb-6">B.Tech CSE · GLA University</p>
+          <p className="text-text-secondary font-sans text-sm font-medium mb-6">
+            {userData?.college || 'Student'}
+          </p>
 
           <div className="w-full max-w-md bg-primary-bg p-4 rounded-xl border border-border-default shadow-sm group">
             <div className="flex justify-between font-mono text-xs mb-3 font-medium">
-              <span className="text-text-primary">{xp.toLocaleString()} <span className="text-text-secondary">/ {nextXp.toLocaleString()} XP to Level 13</span></span>
+              <span className="text-text-primary">
+                {xp.toLocaleString()} <span className="text-text-secondary">/ {nextXp.toLocaleString()} XP to Level {level + 1}</span>
+              </span>
               <span className="text-saffron font-bold">{Math.round(progress)}%</span>
             </div>
             <div className="h-2 w-full bg-border-default rounded-full overflow-hidden">
-              <motion.div 
+              <motion.div
                 className="h-full bg-saffron"
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
@@ -47,14 +268,16 @@ export default function ProfileDashboard() {
           </div>
         </div>
       </Card>
+
+      {/* Stats Cards */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <Card className="p-5 flex items-center gap-4 group bg-surface border-t-[3px] border-t-emerald hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
           <div className="w-12 h-12 rounded-xl bg-emerald/10 flex items-center justify-center text-emerald">
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <div className="font-display text-2xl text-text-primary">38h</div>
-            <div className="text-[11px] uppercase tracking-wider text-text-secondary font-bold">Study (This Month)</div>
+            <div className="font-display text-2xl text-text-primary">{streakDays}d</div>
+            <div className="text-[11px] uppercase tracking-wider text-text-secondary font-bold">Current Streak</div>
           </div>
         </Card>
         <Card className="p-5 flex items-center gap-4 group bg-surface border-t-[3px] border-t-violet hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
@@ -62,20 +285,254 @@ export default function ProfileDashboard() {
             <Video className="w-6 h-6" />
           </div>
           <div>
-            <div className="font-display text-2xl text-text-primary">7</div>
-            <div className="text-[11px] uppercase tracking-wider text-text-secondary font-bold">Interviews</div>
+            <div className="font-display text-2xl text-text-primary">
+              {profileData?.leetcode?.data?.profile?.contest_rating || 'N/A'}
+            </div>
+            <div className="text-[11px] uppercase tracking-wider text-text-secondary font-bold">LeetCode Rating</div>
           </div>
         </Card>
         <Card className="p-5 flex items-center gap-4 group bg-surface border-t-[3px] border-t-saffron hover:bg-elevated transition-colors border-l-border-default border-r-border-default border-b-border-default">
           <div className="w-12 h-12 rounded-xl bg-saffron/10 flex items-center justify-center text-saffron">
-            <IndianRupee className="w-6 h-6" />
+            <Trophy className="w-6 h-6" />
           </div>
           <div>
-            <div className="font-display text-2xl text-text-primary">₹1.2k</div>
-            <div className="text-[11px] uppercase tracking-wider text-text-secondary font-bold">Saved (This Month)</div>
+            <div className="font-display text-2xl text-text-primary">
+              {profileData?.leetcode?.data?.profile?.total_solved || 0}
+            </div>
+            <div className="text-[11px] uppercase tracking-wider text-text-secondary font-bold">Problems Solved</div>
           </div>
         </Card>
       </section>
+
+      {/* GitHub & LeetCode Integration Cards */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* GitHub Card */}
+        <Card className="p-6 bg-surface border border-border-default">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gray-900 flex items-center justify-center text-white">
+                <Github className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-heading font-semibold text-[16px] text-text-primary">GitHub</h3>
+                {profileData?.github?.username && (
+                  <p className="text-xs text-text-secondary">@{profileData.github.username}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {profileData?.github?.username ? (
+                <>
+                  <button
+                    onClick={handleRefreshGitHub}
+                    disabled={refreshing === 'github'}
+                    className="p-2 rounded-lg hover:bg-elevated transition-colors text-text-secondary hover:text-text-primary disabled:opacity-50"
+                    title="Refresh data"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshing === 'github' ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    onClick={handleRemoveGitHub}
+                    className="p-2 rounded-lg hover:bg-rose/10 text-text-secondary hover:text-rose transition-colors"
+                    title="Disconnect"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowGitHubModal(true)}
+                  className="px-3 py-1.5 bg-violet text-surface rounded-lg text-sm font-semibold hover:bg-violet/90 transition-colors"
+                >
+                  Connect
+                </button>
+              )}
+            </div>
+          </div>
+
+          {profileData?.github?.data ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <img
+                  src={profileData.github.data.profile.avatar_url}
+                  alt={profileData.github.data.profile.name}
+                  className="w-12 h-12 rounded-full"
+                />
+                <div>
+                  <p className="font-semibold text-text-primary">{profileData.github.data.profile.name}</p>
+                  <p className="text-sm text-text-secondary">{profileData.github.data.profile.bio || 'No bio'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-primary-bg rounded-lg">
+                  <div className="font-display text-lg text-text-primary">{profileData.github.data.profile.public_repos}</div>
+                  <div className="text-xs text-text-secondary">Repos</div>
+                </div>
+                <div className="text-center p-3 bg-primary-bg rounded-lg">
+                  <div className="font-display text-lg text-text-primary">{profileData.github.data.profile.followers}</div>
+                  <div className="text-xs text-text-secondary">Followers</div>
+                </div>
+                <div className="text-center p-3 bg-primary-bg rounded-lg">
+                  <div className="font-display text-lg text-text-primary">{profileData.github.data.profile.following}</div>
+                  <div className="text-xs text-text-secondary">Following</div>
+                </div>
+              </div>
+
+              {profileData.github.data.repos.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-text-primary mb-3">Top Repositories</h4>
+                  <div className="space-y-2">
+                    {profileData.github.data.repos.slice(0, 3).map((repo) => (
+                      <a
+                        key={repo.name}
+                        href={repo.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3 bg-primary-bg rounded-lg hover:bg-elevated transition-colors group"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-text-primary truncate">{repo.name}</p>
+                          <p className="text-xs text-text-secondary truncate">{repo.description || 'No description'}</p>
+                        </div>
+                        <div className="flex items-center gap-3 text-text-secondary">
+                          {repo.language && (
+                            <span className="text-xs flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-emerald"></span>
+                              {repo.language}
+                            </span>
+                          )}
+                          <span className="text-xs flex items-center gap-1">
+                            <Star className="w-3 h-3" />
+                            {repo.stars}
+                          </span>
+                          <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Github className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
+              <p className="text-sm text-text-secondary mb-4">Connect your GitHub account to display your repositories and activity</p>
+            </div>
+          )}
+        </Card>
+
+        {/* LeetCode Card */}
+        <Card className="p-6 bg-surface border border-border-default">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center text-white">
+                <Code2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-heading font-semibold text-[16px] text-text-primary">LeetCode</h3>
+                {profileData?.leetcode?.username && (
+                  <p className="text-xs text-text-secondary">@{profileData.leetcode.username}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {profileData?.leetcode?.username ? (
+                <>
+                  <button
+                    onClick={handleRefreshLeetCode}
+                    disabled={refreshing === 'leetcode'}
+                    className="p-2 rounded-lg hover:bg-elevated transition-colors text-text-secondary hover:text-text-primary disabled:opacity-50"
+                    title="Refresh data"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshing === 'leetcode' ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    onClick={handleRemoveLeetCode}
+                    className="p-2 rounded-lg hover:bg-rose/10 text-text-secondary hover:text-rose transition-colors"
+                    title="Disconnect"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowLeetCodeModal(true)}
+                  className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors"
+                >
+                  Connect
+                </button>
+              )}
+            </div>
+          </div>
+
+          {profileData?.leetcode?.data ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-text-primary">{profileData.leetcode.data.profile.real_name || profileData.leetcode.data.profile.username}</p>
+                  <p className="text-sm text-text-secondary">
+                    {profileData.leetcode.data.profile.skill_level || 'Beginner'}
+                  </p>
+                </div>
+                {profileData.leetcode.data.profile.contest_rating && (
+                  <div className="text-right">
+                    <div className="font-display text-2xl text-orange-500">{profileData.leetcode.data.profile.contest_rating}</div>
+                    <div className="text-xs text-text-secondary">Contest Rating</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-emerald/10 rounded-lg border border-emerald/20">
+                  <div className="font-display text-lg text-emerald">{profileData.leetcode.data.profile.easy_solved}</div>
+                  <div className="text-xs text-text-secondary">Easy</div>
+                </div>
+                <div className="text-center p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                  <div className="font-display text-lg text-yellow-600">{profileData.leetcode.data.profile.medium_solved}</div>
+                  <div className="text-xs text-text-secondary">Medium</div>
+                </div>
+                <div className="text-center p-3 bg-rose/10 rounded-lg border border-rose/20">
+                  <div className="font-display text-lg text-rose">{profileData.leetcode.data.profile.hard_solved}</div>
+                  <div className="text-xs text-text-secondary">Hard</div>
+                </div>
+              </div>
+
+              {profileData.leetcode.data.recent_submissions.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-text-primary mb-3">Recent Submissions</h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {profileData.leetcode.data.recent_submissions.slice(0, 5).map((sub, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 bg-primary-bg rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text-primary truncate">{sub.title}</p>
+                          <p className="text-xs text-text-secondary">{sub.lang}</p>
+                        </div>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            sub.statusDisplay === 'Accepted'
+                              ? 'bg-emerald/10 text-emerald'
+                              : 'bg-rose/10 text-rose'
+                          }`}
+                        >
+                          {sub.statusDisplay}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Code2 className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
+              <p className="text-sm text-text-secondary mb-4">Connect your LeetCode account to display your stats and submissions</p>
+            </div>
+          )}
+        </Card>
+      </section>
+
+      {/* Life Score Breakdown */}
       <Card className="p-6 bg-surface border border-border-default flex flex-col md:flex-row items-center gap-8 justify-between">
         <div className="flex-1 w-full space-y-5">
           <h3 className="font-heading font-bold text-lg text-text-primary mb-2">Life Score Breakdown</h3>
@@ -83,23 +540,29 @@ export default function ProfileDashboard() {
             <div>
               <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-2">
                 <span className="text-emerald">Academic</span>
-                <span className="font-mono text-text-primary">74</span>
+                <span className="font-mono text-text-primary">{Math.round(trimindScore * 0.4)}</span>
               </div>
-              <div className="h-2 bg-primary-bg rounded-full border border-border-default overflow-hidden"><div className="h-full bg-emerald w-[74%]"></div></div>
+              <div className="h-2 bg-primary-bg rounded-full border border-border-default overflow-hidden">
+                <div className="h-full bg-emerald w-[74%]"></div>
+              </div>
             </div>
             <div>
               <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-2">
                 <span className="text-saffron">Financial</span>
-                <span className="font-mono text-text-primary">61</span>
+                <span className="font-mono text-text-primary">{Math.round(trimindScore * 0.3)}</span>
               </div>
-              <div className="h-2 bg-primary-bg rounded-full border border-border-default overflow-hidden"><div className="h-full bg-saffron w-[61%]"></div></div>
+              <div className="h-2 bg-primary-bg rounded-full border border-border-default overflow-hidden">
+                <div className="h-full bg-saffron w-[61%]"></div>
+              </div>
             </div>
             <div>
               <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-2">
                 <span className="text-violet">Interview</span>
-                <span className="font-mono text-text-primary">81</span>
+                <span className="font-mono text-text-primary">{Math.round(trimindScore * 0.3)}</span>
               </div>
-              <div className="h-2 bg-primary-bg rounded-full border border-border-default overflow-hidden"><div className="h-full bg-violet w-[81%]"></div></div>
+              <div className="h-2 bg-primary-bg rounded-full border border-border-default overflow-hidden">
+                <div className="h-full bg-violet w-[81%]"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -107,14 +570,18 @@ export default function ProfileDashboard() {
           <div className="w-32 h-32 rounded-full border-[8px] border-primary-bg flex items-center justify-center relative shadow-sm">
             <svg className="absolute inset-[-8px] w-[calc(100%+16px)] h-[calc(100%+16px)] -rotate-90" viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="46" fill="none" stroke="#E8E6DF" strokeWidth="8" />
-              <circle cx="50" cy="50" r="46" fill="none" stroke="#5B47E0" strokeWidth="8" strokeDasharray="289" strokeDashoffset="83" strokeLinecap="round" />
+              <circle cx="50" cy="50" r="46" fill="none" stroke="#5B47E0" strokeWidth="8" strokeDasharray="289" strokeDashoffset={289 - (289 * trimindScore / 1000)} strokeLinecap="round" />
             </svg>
-            <div className="font-display text-4xl text-text-primary">712</div>
+            <div className="font-display text-4xl text-text-primary">{trimindScore}</div>
           </div>
           <span className="text-xs font-mono font-bold text-text-secondary mt-3">/ 1000</span>
-          <span className="mt-2 bg-emerald/10 text-emerald text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-md">Top 18%</span>
+          <span className="mt-2 bg-emerald/10 text-emerald text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-md">
+            Top {Math.max(1, 100 - Math.floor(trimindScore / 10))}%
+          </span>
         </div>
       </Card>
+
+      {/* Activity Log */}
       <section>
         <Card className="p-6 border-border-default bg-surface">
           <div className="flex justify-between items-center mb-6">
@@ -129,8 +596,8 @@ export default function ProfileDashboard() {
           </div>
           <div className="grid grid-rows-7 grid-flow-col gap-1.5 overflow-x-auto pb-2 hide-scrollbar">
             {heatmap.map((val, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className={`w-3 h-3 rounded-sm transition-colors cursor-pointer ${
                   val === 0 ? 'bg-primary-bg border border-border-default' :
                   val === 1 ? 'bg-[#D1FAE5] border border-[#A7F3D0]' :
@@ -154,19 +621,21 @@ export default function ProfileDashboard() {
           </div>
         </Card>
       </section>
+
+      {/* Achievement Shelf */}
       <section>
         <Card className="p-6 bg-surface border border-border-default">
           <h3 className="font-heading font-bold text-text-primary text-lg mb-6">Achievement Shelf</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { name: "7-Day Streak", icon: Trophy, earned: true, color: "text-saffron", bg: "bg-saffron/10", border: "border-saffron/20" },
-              { name: "Budget Master", icon: IndianRupee, earned: true, color: "text-emerald", bg: "bg-emerald/10", border: "border-emerald/20" },
+              { name: "7-Day Streak", icon: Trophy, earned: streakDays >= 7, color: "text-saffron", bg: "bg-saffron/10", border: "border-saffron/20" },
+              { name: "30-Day Streak", icon: Flame, earned: streakDays >= 30, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+              { name: "Code Master", icon: Code2, earned: (profileData?.leetcode?.data?.profile?.total_solved || 0) >= 100, color: "text-emerald", bg: "bg-emerald/10", border: "border-emerald/20" },
               { name: "Interview Ace", icon: Video, earned: true, color: "text-violet", bg: "bg-violet/10", border: "border-violet/20" },
-              { name: "Quiz Champion", icon: Star, earned: true, color: "text-saffron", bg: "bg-saffron/10", border: "border-saffron/20" },
-              { name: "Night Owl", icon: BookOpen, earned: false },
-              { name: "Iron Stomach", icon: BookOpen, earned: false },
-              { name: "Debate King", icon: BookOpen, earned: false },
-              { name: "Savings Hero", icon: BookOpen, earned: false },
+              { name: "GitHub Star", icon: Github, earned: (profileData?.github?.data?.profile?.followers || 0) >= 10, color: "text-gray-700", bg: "bg-gray-700/10", border: "border-gray-700/20" },
+              { name: "Problem Solver", icon: Zap, earned: (profileData?.leetcode?.data?.profile?.hard_solved || 0) >= 10, color: "text-yellow-500", bg: "bg-yellow-500/10", border: "border-yellow-500/20" },
+              { name: "Contest Warrior", icon: Award, earned: (profileData?.leetcode?.data?.profile?.attended_contests || 0) >= 5, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+              { name: "Top Coder", icon: TrendingUp, earned: (profileData?.leetcode?.data?.profile?.contest_rating || 0) >= 1500, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
             ].map((badge, i) => (
               <div key={i} className={`p-4 rounded-xl flex flex-col items-center justify-center gap-3 text-center transition-colors border ${badge.earned ? `${badge.bg} ${badge.border} hover:bg-elevated shadow-sm` : 'bg-primary-bg border-border-default grayscale opacity-60'}`}>
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${badge.earned ? 'bg-surface shadow-sm' : 'bg-border-default'} ${badge.color || 'text-text-tertiary'}`}>
@@ -178,8 +647,9 @@ export default function ProfileDashboard() {
           </div>
         </Card>
       </section>
+
+      {/* Goals and Other Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        
         <Card className="p-6 bg-surface border border-border-default flex flex-col hover:bg-elevated transition-colors">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-lg bg-emerald/10 flex items-center justify-center text-emerald">
@@ -193,8 +663,10 @@ export default function ProfileDashboard() {
               <span className="font-mono font-bold text-text-secondary bg-primary-bg px-2 py-1 rounded">21 Days</span>
             </div>
             <div className="flex justify-between items-center text-sm border-b border-border-default pb-3">
-              <span className="font-medium text-text-primary">Savings Goal</span>
-              <span className="font-mono font-bold text-text-secondary bg-primary-bg px-2 py-1 rounded">₹4.2k/10k</span>
+              <span className="font-medium text-text-primary">LeetCode Problems</span>
+              <span className="font-mono font-bold text-text-secondary bg-primary-bg px-2 py-1 rounded">
+                {profileData?.leetcode?.data?.profile?.total_solved || 0}/500
+              </span>
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="font-medium text-text-primary">Mock Interview Target</span>
@@ -241,7 +713,7 @@ export default function ProfileDashboard() {
           </div>
           <div className="flex gap-2 mt-auto">
             <button className="flex-1 py-2.5 bg-primary-bg border border-border-default text-text-primary rounded-lg text-sm font-bold hover:bg-border-default transition-colors flex items-center justify-center gap-2">
-              <Upload className="w-4 h-4" /> Upload 
+              <Upload className="w-4 h-4" /> Upload
             </button>
             <button className="flex-1 py-2.5 bg-primary-bg border border-border-default text-text-primary rounded-lg text-sm font-bold hover:bg-border-default transition-colors">
               Full Report →
@@ -256,13 +728,116 @@ export default function ProfileDashboard() {
             </div>
             <h3 className="font-heading font-bold text-[16px] text-emerald">Parent Dashboard Share</h3>
           </div>
-          <p className="text-sm font-medium text-text-primary mb-4 leading-relaxed">"Aditya studied 18 hrs, spent ₹3,200, and ranked #12 on the DSA leaderboard this week."</p>
+          <p className="text-sm font-medium text-text-primary mb-4 leading-relaxed">
+            "{userData?.name || 'You'} studied 18 hrs, spent ₹3,200, and ranked #12 on the DSA leaderboard this week."
+          </p>
           <button className="w-full py-3 bg-[#25D366] text-white rounded-lg text-sm font-bold shadow-md hover:bg-[#1DA851] transition-colors flex items-center justify-center gap-2 mt-auto">
             Share to WhatsApp →
           </button>
         </Card>
       </div>
 
+      {/* GitHub Modal */}
+      <AnimatePresence>
+        {showGitHubModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-heading font-bold text-lg text-text-primary">Connect GitHub</h3>
+                <button onClick={() => setShowGitHubModal(false)} className="p-2 hover:bg-elevated rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-text-secondary" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">GitHub Username</label>
+                  <input
+                    type="text"
+                    value={githubInput}
+                    onChange={(e) => setGithubInput(e.target.value)}
+                    placeholder="e.g., octocat"
+                    className="w-full bg-primary-bg border border-border-default rounded-lg px-4 py-3 text-sm outline-none focus:border-violet transition-colors"
+                  />
+                  <p className="text-xs text-text-secondary mt-2">
+                    Your GitHub profile must be public to fetch data.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowGitHubModal(false)}
+                    className="flex-1 py-2.5 bg-primary-bg border border-border-default text-text-primary rounded-lg text-sm font-semibold hover:bg-border-default transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleGitHubConnect}
+                    disabled={!githubInput}
+                    className="flex-1 py-2.5 bg-violet text-surface rounded-lg text-sm font-semibold hover:bg-violet/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Connect
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* LeetCode Modal */}
+      <AnimatePresence>
+        {showLeetCodeModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface rounded-2xl p-6 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-heading font-bold text-lg text-text-primary">Connect LeetCode</h3>
+                <button onClick={() => setShowLeetCodeModal(false)} className="p-2 hover:bg-elevated rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-text-secondary" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">LeetCode Username</label>
+                  <input
+                    type="text"
+                    value={leetcodeInput}
+                    onChange={(e) => setLeetCodeInput(e.target.value)}
+                    placeholder="e.g., leetcode_user"
+                    className="w-full bg-primary-bg border border-border-default rounded-lg px-4 py-3 text-sm outline-none focus:border-orange-500 transition-colors"
+                  />
+                  <p className="text-xs text-text-secondary mt-2">
+                    Your LeetCode profile must be public to fetch data.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowLeetCodeModal(false)}
+                    className="flex-1 py-2.5 bg-primary-bg border border-border-default text-text-primary rounded-lg text-sm font-semibold hover:bg-border-default transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleLeetCodeConnect}
+                    disabled={!leetcodeInput}
+                    className="flex-1 py-2.5 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Connect
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

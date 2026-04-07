@@ -2,16 +2,61 @@ import { Card } from "../components/ui/card";
 import { BookOpen, IndianRupee, Video, ArrowRight } from "lucide-react";
 import logo from "../../assets/logo.png";
 import { motion, AnimatePresence } from "motion/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
+import { register, login } from "../../lib/auth";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
+  const [budget] = useState(800000);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup');
+
+  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+
   const navigate = useNavigate();
 
-  const handleSelect = (id: string) => {
-    setSelected(id);
+  const alreadyLoggedIn = !!localStorage.getItem('access_token');
+  
+  useEffect(() => {
+    if (alreadyLoggedIn) {
+      navigate('/', { replace: true });
+    }
+  }, [alreadyLoggedIn, navigate]);
+
+  if (alreadyLoggedIn) {
+    return null;
+  }
+
+  const handleSelect = (id: string) => setSelected(id);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (authMode === 'signup') {
+        await register({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          onboarding_goal: selected,
+          monthly_budget: budget,
+        });
+      } else {
+        await login({
+          email: formData.email,
+          password: formData.password,
+        });
+      }
+      navigate('/');
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.error?.message;
+      setError(msg || (authMode === 'signup' ? "Registration failed. Try again." : "Invalid email or password."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -41,12 +86,11 @@ export default function Onboarding() {
 
               <div className="flex flex-col md:flex-row gap-6 w-full justify-center">
                 {[
-                  { id: "placed", title: "Get Placed", subtitle: "Aptitude, DSA, & Mock Interviews", icon: Video, color: "violet", accent: "#5B47E0" },
-                  { id: "money", title: "Control My Money", subtitle: "Budget tracking & saving goals", icon: IndianRupee, color: "saffron", accent: "#E8620A" },
-                  { id: "exam", title: "Crack My Exam", subtitle: "GATE, CAT, or Semester prep", icon: BookOpen, color: "emerald", accent: "#0EA882" },
-                ].map((goal, i) => {
+                  { id: "placed", title: "Get Placed", subtitle: "Aptitude, DSA, & Mock Interviews", icon: Video, accent: "#5B47E0" },
+                  { id: "money", title: "Control My Money", subtitle: "Budget tracking & saving goals", icon: IndianRupee, accent: "#E8620A" },
+                  { id: "exam", title: "Crack My Exam", subtitle: "GATE, CAT, or Semester prep", icon: BookOpen, accent: "#0EA882" },
+                ].map((goal) => {
                   const isSelected = selected === goal.id;
-                  
                   return (
                     <Card 
                       key={goal.id}
@@ -97,99 +141,66 @@ export default function Onboarding() {
               className="flex flex-col items-center w-full max-w-md"
             >
               <h1 className="font-display text-4xl text-text-primary leading-tight text-center tracking-tight mb-8">
-                When is the big day?
+                {authMode === 'signup' ? 'Create Your Account' : 'Welcome Back'}
               </h1>
-              
-              <Card className="w-full p-6 bg-surface mb-6">
-                <div className="flex justify-between items-center mb-6 px-2">
-                  <span className="font-heading font-semibold text-lg">August 2026</span>
-                  <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full border border-border-default flex items-center justify-center text-text-tertiary">{'<'}</div>
-                    <div className="w-8 h-8 rounded-full border border-border-default flex items-center justify-center text-text-primary">{'>'}</div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-7 gap-2 text-center text-sm mb-4 text-text-tertiary font-medium">
-                  <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
-                </div>
-                <div className="grid grid-cols-7 gap-2 text-center text-sm font-medium">
-                  {Array.from({ length: 31 }).map((_, i) => (
-                    <div 
-                      key={i} 
-                      className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center cursor-pointer transition-colors ${
-                        i === 14 ? 'bg-violet text-surface shadow-sm' : 'hover:bg-elevated text-text-primary'
-                      }`}
-                    >
-                      {i + 1}
-                    </div>
-                  ))}
-                </div>
-              </Card>
 
-              <div className="w-full bg-elevated p-4 rounded-xl border-l-[3px] border-l-violet flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-violet/10 flex items-center justify-center shrink-0">
-                  <span className="text-violet font-bold text-sm">AI</span>
-                </div>
-                <p className="text-sm font-medium text-text-primary">
-                  I'll map your study plan backwards from this date.
-                </p>
+              <div className="w-full flex mb-6 bg-elevated rounded-xl p-1">
+                <button
+                  onClick={() => { setAuthMode('signup'); setError(null); }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    authMode === 'signup' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary'
+                  }`}
+                >Sign Up</button>
+                <button
+                  onClick={() => { setAuthMode('login'); setError(null); }}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    authMode === 'login' ? 'bg-surface text-text-primary shadow-sm' : 'text-text-tertiary'
+                  }`}
+                >Sign In</button>
               </div>
 
-              <button
-                onClick={() => setStep(3)}
-                className="mt-8 flex items-center gap-2 bg-text-primary text-surface font-medium px-8 py-3.5 rounded-xl text-sm hover:bg-text-primary/90 transition-colors"
-              >
-                Set my date
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </motion.div>
-          )}
-
-          {step === 3 && (
-            <motion.div 
-              key="step3"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex flex-col items-center w-full max-w-md"
-            >
-              <h1 className="font-display text-4xl text-text-primary leading-tight text-center tracking-tight mb-4">
-                What's your monthly budget?
-              </h1>
-              <p className="text-text-secondary font-sans text-lg font-medium tracking-wide mb-12 text-center">
-                Keep it realistic. We'll help you stick to it.
-              </p>
-
-              <div className="flex items-center gap-2 mb-8">
-                <span className="font-display text-5xl text-saffron">₹</span>
+              <Card className="w-full p-6 bg-surface mb-6 flex flex-col gap-4">
+                {error && <div className="text-rose text-sm font-medium bg-rose/10 p-3 rounded-lg">{error}</div>}
+                
+                {authMode === 'signup' && (
+                  <input 
+                    type="text" 
+                    placeholder="Full Name" 
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full bg-primary-bg border border-border-default rounded-lg px-4 py-3 text-sm outline-none focus:border-violet transition-colors" 
+                  />
+                )}
                 <input 
-                  type="text" 
-                  value="8,000" 
-                  readOnly 
-                  className="font-display text-6xl text-text-primary bg-transparent w-48 outline-none"
+                  type="email" 
+                  placeholder="Email" 
+                  value={formData.email}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full bg-primary-bg border border-border-default rounded-lg px-4 py-3 text-sm outline-none focus:border-violet transition-colors" 
                 />
-              </div>
-
-              <div className="w-full h-2 bg-elevated rounded-full mb-8 relative">
-                <div className="absolute left-0 top-0 h-full w-[40%] bg-saffron rounded-full"></div>
-                <div className="absolute left-[40%] top-1/2 -translate-y-1/2 w-6 h-6 bg-surface border-2 border-saffron rounded-full shadow-sm"></div>
-              </div>
-
-              <Card className="w-full p-4 bg-surface text-center mb-10 border-border-default">
-                <p className="text-text-secondary text-sm font-medium">That's <span className="font-bold text-text-primary">₹267/day</span> for everything.</p>
+                <input 
+                  type="password" 
+                  placeholder="Password (min 8 chars)" 
+                  value={formData.password}
+                  onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full bg-primary-bg border border-border-default rounded-lg px-4 py-3 text-sm outline-none focus:border-violet transition-colors" 
+                />
               </Card>
 
               <button
-                onClick={() => navigate('/app')}
-                className="flex items-center gap-2 bg-violet text-surface font-medium px-8 py-3.5 rounded-xl text-sm hover:bg-violet/90 transition-colors shadow-sm"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 bg-violet text-surface font-medium px-8 py-3.5 rounded-xl text-sm hover:bg-violet/90 transition-colors shadow-sm disabled:opacity-50"
               >
-                Launch Manzil AI
-                <ArrowRight className="w-4 h-4" />
+                {loading ? (authMode === 'signup' ? 'Creating...' : 'Signing in...') : (authMode === 'signup' ? 'Create Account' : 'Sign In')}
+                {!loading && <ArrowRight className="w-4 h-4" />}
               </button>
             </motion.div>
           )}
         </AnimatePresence>
+
         <div className="absolute bottom-[-60px] flex gap-2">
-          {[1, 2, 3].map(d => (
+          {[1, 2].map(d => (
             <div 
               key={d} 
               className={`w-2 h-2 rounded-full transition-all duration-300 ${step === d ? 'bg-text-primary w-6' : 'bg-border-default'}`} 

@@ -3,6 +3,7 @@ import { query } from '../db/index.js';
 import redisClient from '../db/redis.js';
 import { sendSuccess, sendError } from '../utils/response.js';
 import { detectFillerWords } from '../utils/fillerWords.js';
+import { askAI } from '../utils/ai.js';
 
 const INTERVIEW_TTL = 2 * 60 * 60;
 
@@ -16,20 +17,54 @@ const checkValidation = (req, res) => {
   return true;
 };
 
-const generateStubQuestions = (domain, roundType, total) => {
-  return Array.from({ length: total }, (_, i) => ({
-    index: i,
-    question_text: `Stub Q${i + 1}: Tell me about your experience in ${domain} (${roundType} round).`,
-  }));
+const generateAIQuestions = async (domain, roundType, total) => {
+  const prompt = `Generate exactly ${total} technical interview questions for a ${roundType} round targeting the ${domain} domain. 
+Return only a JSON array of objects with a "question_text" field.`;
+  
+  try {
+    const raw = await askAI(prompt, 'You are an expert technical interviewer.', true);
+    const parsed = JSON.parse(raw);
+    let questions = Array.isArray(parsed) ? parsed : parsed.questions || [];
+    
+    // Fallback if AI messes up the format
+    if (questions.length === 0) throw new Error('AI returned empty');
+    
+    return questions.map((q, i) => ({
+      index: i,
+      question_text: q.question_text || q,
+    })).slice(0, total);
+  } catch (err) {
+    console.error('Question generation failed', err);
+    // Fallback to stubs if it completely fails
+    return Array.from({ length: total }, (_, i) => ({
+      index: i,
+      question_text: `Fallback Q${i + 1}: Explain a challenging concept you learned in ${domain}.`,
+    }));
+  }
 };
 
-const stubEvaluate = () => ({
-  feedback: 'Stub AI feedback — AI engineer will replace this with Claude evaluation.',
-  clarity_score: Math.floor(Math.random() * 30) + 70,
-  depth_score: Math.floor(Math.random() * 30) + 70,
-  confidence_score: Math.floor(Math.random() * 30) + 70,
-  structure_score: Math.floor(Math.random() * 30) + 70,
-});
+const evaluateAnswer = async (question, answer) => {
+  const prompt = `Question: "${question}"
+Candidate's Answer: "${answer}"
+
+Evaluate the answer. Return ONLY a JSON object with these exactly named keys:
+- "feedback" (string, max 2 sentences constructive feedback)
+- "clarity_score" (number 0-100)
+- "depth_score" (number 0-100)
+- "confidence_score" (number 0-100)
+- "structure_score" (number 0-100)`;
+
+  try {
+    const raw = await askAI(prompt, 'You are an elite Silicon Valley interviewer rating candidate answers strictly.', true);
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error('Evaluation failed', err);
+    return {
+      feedback: 'Could not generate detailed AI feedback right now. Keep practicing!',
+      clarity_score: 50, depth_score: 50, confidence_score: 50, structure_score: 50
+    };
+  }
+};
 
 export const startSession = async (req, res) => {
   if (!checkValidation(req, res)) return;
@@ -44,7 +79,7 @@ export const startSession = async (req, res) => {
   );
 
   const session = rows[0];
-  const questions = generateStubQuestions(domain, round_type, total_questions);
+  const questions = await generateAIQuestions(domain, round_type, total_questions);
 
   await redisClient.setEx(
     `interview:${session.id}:questions`,
@@ -77,7 +112,9 @@ export const submitAnswer = async (req, res) => {
 
   const { total_questions } = sessionResult.rows[0];
   const fillerResult = detectFillerWords(answer_text);
-  const evaluation = stubEvaluate();
+  
+  // AI Evaluation
+  const evaluation = await evaluateAnswer(question_text, answer_text);
 
   const { rows } = await query(
     `INSERT INTO interview_answers
@@ -89,8 +126,8 @@ export const submitAnswer = async (req, res) => {
       question_text,
       answer_text,
       audio_s3_key || null,
-      evaluation.feedback,
-      JSON.stringify(fillerResult.breakdown),
+      JSON.stringify(evaluation),                          // store FULL object so endSession can extract scores
+      JSON.stringify(fillerResult.breakdown || {}),        // ensure valid JSON object
       question_index,
     ]
   );
@@ -110,6 +147,12 @@ export const submitAnswer = async (req, res) => {
   return sendSuccess(res, {
     answer: rows[0],
     feedback: evaluation.feedback,
+    scores: {
+      clarity: evaluation.clarity_score,
+      depth: evaluation.depth_score,
+      confidence: evaluation.confidence_score,
+      structure: evaluation.structure_score
+    },
     filler_words: fillerResult,
     next_question: nextQuestion,
     is_last: isLast,
@@ -130,13 +173,25 @@ export const endSession = async (req, res) => {
   }
 
   const answersResult = await query(
-    `SELECT filler_words_detected FROM interview_answers WHERE session_id = $1`,
+    `SELECT filler_words_detected,
+            (ai_feedback::json->>'clarity_score')::INTEGER as c_score,
+            (ai_feedback::json->>'depth_score')::INTEGER as d_score,
+            (ai_feedback::json->>'confidence_score')::INTEGER as conf_score,
+            (ai_feedback::json->>'structure_score')::INTEGER as s_score
+     FROM interview_answers WHERE session_id = $1`,
     [sessionId]
   );
 
-  const evaluation = stubEvaluate();
+  let totalC = 0, totalD = 0, totalConf = 0, totalS = 0;
+  const count = answersResult.rowCount || 1; // prevent divide by zero
 
   const totalFillers = answersResult.rows.reduce((sum, row) => {
+    // Also accumulate scores (fallback to 70 if missing JSON field)
+    totalC += row.c_score || 70;
+    totalD += row.d_score || 70;
+    totalConf += row.conf_score || 70;
+    totalS += row.s_score || 70;
+
     const breakdown = row.filler_words_detected || {};
     return sum + Object.values(breakdown).reduce((s, n) => s + n, 0);
   }, 0);
@@ -153,10 +208,10 @@ export const endSession = async (req, res) => {
      WHERE id = $6
      RETURNING *`,
     [
-      evaluation.clarity_score,
-      evaluation.depth_score,
-      evaluation.confidence_score,
-      evaluation.structure_score,
+      Math.round(totalC / count),
+      Math.round(totalD / count),
+      Math.round(totalConf / count),
+      Math.round(totalS / count),
       totalFillers,
       sessionId,
     ]
@@ -272,8 +327,36 @@ export const getFillerStats = async (req, res) => {
 
 export const transcribeAudio = async (req, res) => {
   return sendSuccess(res, {
-    transcript: 'Stub — Whisper transcription will replace this.',
+    transcript: 'Whisper transcription stub — use Web Speech API on the frontend.',
   });
+};
+
+export const jdAnalyze = async (req, res) => {
+  if (!checkValidation(req, res)) return;
+  const { jd_text } = req.body;
+
+  const prompt = `Analyze this Job Description and extract:
+1. A list of specific technical and soft skills required (max 12 skills, short names only like "React", "System Design", "SQL")
+2. A concise 7-day preparation plan tailored to these skills
+
+Job Description:
+${jd_text.slice(0, 2000)}
+
+Return ONLY a JSON object with:
+- "skills": array of skill name strings
+- "plan": a single short paragraph (2-3 sentences) describing the 7-day plan`;
+
+  try {
+    const raw = await askAI(prompt, 'You are a senior technical recruiter and career coach.', true);
+    const parsed = JSON.parse(raw);
+    return sendSuccess(res, {
+      skills: parsed.skills || [],
+      plan: parsed.plan || '',
+    });
+  } catch (err) {
+    console.error('JD Analyze failed', err);
+    return sendError(res, 'AI_ERROR', 'JD analysis failed. Try again.', 500);
+  }
 };
 
 export const salaryRoleplay = async (req, res) => {
@@ -284,13 +367,23 @@ export const salaryRoleplay = async (req, res) => {
 
   await redisClient.rPush(historyKey, JSON.stringify({ role: 'user', content: message }));
   await redisClient.expire(historyKey, 24 * 60 * 60);
-
-  const aiReply = 'Stub negotiation advice — Claude will fill this. You asked: ' + message;
-
-  await redisClient.rPush(historyKey, JSON.stringify({ role: 'assistant', content: aiReply }));
-
+  
   const historyRaw = await redisClient.lRange(historyKey, 0, -1);
   const history = historyRaw.map(h => JSON.parse(h));
 
-  return sendSuccess(res, { reply: aiReply, history });
+  const promptHistory = history.map(h => `${h.role === 'user' ? 'Candidate' : 'HR'}: ${h.content}`).join('\n');
+  const prompt = `Conversation so far:\n${promptHistory}\n\nAs the HR rep, reply to the candidate. Keep it realistic, push back a little if they ask for too much. Do not include prefix "HR:". Keep it under 2 sentences.`;
+
+  try {
+    const aiReply = await askAI(prompt, 'You are an HR representative at a top tech company negotiating salary.');
+    await redisClient.rPush(historyKey, JSON.stringify({ role: 'assistant', content: aiReply }));
+    
+    const finalHistoryRaw = await redisClient.lRange(historyKey, 0, -1);
+    const finalHistory = finalHistoryRaw.map(h => JSON.parse(h));
+    
+    return sendSuccess(res, { reply: aiReply, history: finalHistory });
+  } catch (err) {
+    console.error('Salary Roleplay failed', err);
+    return sendError(res, 'AI_ERROR', 'HR is currently unavailable.', 500);
+  }
 };

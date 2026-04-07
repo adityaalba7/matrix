@@ -10,23 +10,20 @@ import {
   getPerformance,
   getFillerStats,
   transcribeAudio,
+  jdAnalyze,
   salaryRoleplay,
 } from '../controllers/interview.controller.js';
 
 const router = Router();
 
+// Wrap every async handler — prevents "Network Error" from unhandled promise rejections
+const ca = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
 router.use(authMiddleware);
 
-const VALID_DOMAINS = ['cs', 'marketing', 'finance', 'hr', 'product', 'data'];
-const VALID_ROUND_TYPES = ['hr', 'technical', 'mixed'];
-
 const startSessionRules = [
-  body('domain')
-    .notEmpty().withMessage('domain is required.')
-    .isIn(VALID_DOMAINS).withMessage(`domain must be one of: ${VALID_DOMAINS.join(', ')}.`),
-  body('round_type')
-    .notEmpty().withMessage('round_type is required.')
-    .isIn(VALID_ROUND_TYPES).withMessage(`round_type must be one of: ${VALID_ROUND_TYPES.join(', ')}.`),
+  body('domain').notEmpty().withMessage('domain is required.').isString(),
+  body('round_type').notEmpty().withMessage('round_type is required.').isString(),
   body('company_target')
     .optional().trim().isLength({ max: 100 }).withMessage('company_target must be at most 100 characters.'),
   body('total_questions')
@@ -46,14 +43,15 @@ const salaryRules = [
   body('message').notEmpty().withMessage('message is required.'),
 ];
 
-router.post('/sessions',                startSessionRules,  startSession);
-router.post('/sessions/:id/answer',     submitAnswerRules,  submitAnswer);
-router.post('/sessions/:id/end',                            endSession);
-router.get('/sessions',                                     listSessions);
-router.get('/sessions/:id',                                 getSessionDetail);
-router.get('/performance',                                  getPerformance);
-router.get('/filler-stats',                                 getFillerStats);
-router.post('/voice/transcribe',                            transcribeAudio);
-router.post('/salary-roleplay/message', salaryRules,        salaryRoleplay);
+router.post('/sessions',                startSessionRules,  ca(startSession));
+router.post('/sessions/:id/answer',     submitAnswerRules,  ca(submitAnswer));
+router.post('/sessions/:id/end',                            ca(endSession));
+router.get('/sessions',                                     ca(listSessions));
+router.get('/sessions/:id',                                 ca(getSessionDetail));
+router.get('/performance',                                  ca(getPerformance));
+router.get('/filler-stats',                                 ca(getFillerStats));
+router.post('/voice/transcribe',                            ca(transcribeAudio));
+router.post('/salary-roleplay/message', salaryRules,        ca(salaryRoleplay));
+router.post('/jd-analyze',              [body('jd_text').notEmpty()], ca(jdAnalyze));
 
 export default router;

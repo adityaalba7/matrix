@@ -44,7 +44,6 @@ const answerRules = [
   body('correct_answer').notEmpty().withMessage('correct_answer is required.'),
   body('user_answer').notEmpty().withMessage('user_answer is required.'),
   body('is_correct')
-    .notEmpty().withMessage('is_correct is required.')
     .isBoolean().withMessage('is_correct must be a boolean.'),
   body('concept_tag')
     .optional().trim().isLength({ max: 100 }),
