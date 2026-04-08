@@ -1,21 +1,15 @@
-import pg from 'pg';
+import { Pool } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const { Pool } = pg;
-
+// Note: Using WebSocket Neon Serverless driver to bypass TCP issues and strict TLS handshakes
+// that Neon recently enabled which breaks standard node-postgres drivers.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
 });
 
-pool.on('connect', () => {
+pool.once('connect', () => {
   console.log('✅ PostgreSQL pool connected');
 });
 

@@ -35,20 +35,17 @@ export const logExpense = async (req, res) => {
     ]
   );
 
-  // Award XP for logging expense
   try {
     await rewardService.awardXP(
       req.user.id,
-      5, // 5 XP for logging an expense
+      5,
       'expense',
       rows[0].id,
       `Logged expense: ${category || 'general'}`
     );
 
-    // Update streak
     await rewardService.updateStreak(req.user.id);
 
-    // Check for budget adherence achievements
     const now = new Date();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -72,7 +69,6 @@ export const logExpense = async (req, res) => {
     });
   } catch (rewardError) {
     console.error('Error processing rewards:', rewardError);
-    // Don't fail the request if reward processing fails
   }
 
   return sendSuccess(res, { expense: rows[0] }, {}, 201);
@@ -273,7 +269,6 @@ export const parseSms = async (req, res) => {
 
   const lower = sms_text.toLowerCase();
 
-  // Reject credit SMSes immediately (before any AI)
   const isCreditSms = (lower.includes('credited') || lower.includes('received') || lower.includes('salary'))
     && !lower.includes('debited') && !lower.includes('debit') && !lower.includes('spent') && !lower.includes('paid');
   if (isCreditSms) {
@@ -290,20 +285,16 @@ export const parseSms = async (req, res) => {
     return sendError(res, 'NOT_AN_EXPENSE', 'Could not find a valid debit amount in this SMS.', 400);
   }
 
-  // ── Try to extract merchant from UPI-style SMS ────────────────────────────
-  // Patterns: "to MERCHANT via", "at MERCHANT on", "VPA merchant@upi"
   const merchantMatch = sms_text.match(/\bto\s+([A-Z][A-Za-z0-9 &]{1,25}?)(?:\s+(?:via|on|ref|using)|[.,]|$)/i)
     || sms_text.match(/\bat\s+([A-Z][A-Za-z0-9 &]{1,25}?)(?:\s+(?:via|on)|[.,]|$)/i);
   const merchant = merchantMatch
     ? merchantMatch[1].trim()
     : (sms_text.match(/([A-Za-z ]+Bank[A-Za-z ]*)/i)?.[1]?.trim() || 'Bank Debit');
 
-  // If no UPI merchant found, it's likely a generic bank debit → category = bills
   if (!merchantMatch) {
     return sendSuccess(res, { merchant, amount_paise, category: 'bills' });
   }
 
-  // ── Use AI only to classify the category for known merchants ─────────────
   try {
     const categoryPrompt = `What category does "${merchant}" fall into for a college student's expenses? Choose exactly one: food, transport, study, fun, bills, other. Reply with just the one word.`;
     const categoryRaw = (await askAI(categoryPrompt)).toLowerCase().trim().split(/\s/)[0];
